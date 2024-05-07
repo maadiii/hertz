@@ -1,17 +1,58 @@
 package server
 
 import (
-	"bytes"
+	"context"
 	"fmt"
+	"net/http"
 	"reflect"
 	"strconv"
 	"strings"
 
 	"github.com/cloudwego/hertz/pkg/app"
-	"github.com/cloudwego/hertz/pkg/app/server/render"
+	"github.com/cloudwego/hertz/pkg/protocol/consts"
+	"github.com/maadiii/hertz/errors"
 )
 
-type Handler[IN any, OUT any] struct {
+func Handle[IN Request, OUT any](handlers ...func(*Context, IN) (OUT, error)) {
+	befores := make([]*Handler[IN, OUT], 0)
+	afters := make([]*Handler[IN, OUT], 0)
+	main := &Handler[IN, OUT]{}
+
+	for _, h := range handlers {
+		handler := &Handler[IN, OUT]{Action: h}
+		handler.fix()
+
+		if len(handler.Path) == 0 && len(handler.Method) == 0 {
+			befores = append(befores, handler)
+
+			continue
+		}
+
+		if len(handler.Path) != 0 && len(handler.Method) != 0 {
+			main = handler
+
+			continue
+		}
+
+		afters = append(afters, handler)
+	}
+
+	key := fmt.Sprintf("%s::%s::%d::%s", main.Method, main.Path, main.Status, main.ActionType)
+
+	for _, h := range befores {
+		h.describer = main.describer
+		handlersMap[key] = append(handlersMap[key], handle(h))
+	}
+
+	handlersMap[key] = append(handlersMap[key], handle(main))
+
+	for _, h := range afters {
+		h.describer = main.describer
+		handlersMap[key] = append(handlersMap[key], handle(h))
+	}
+}
+
+type Handler[IN Request, OUT any] struct {
 	Action    func(*Context, IN) (OUT, error)
 	RespondFn func(ctx *app.RequestContext, response any)
 
@@ -28,23 +69,27 @@ type describer struct {
 
 func (h *Handler[IN, OUT]) fix() {
 	name := funcPathAndName(h.Action)
-	desc := h.getFixedDescriberArray()
+	desc := h.getFixedDescriberFields()
+
+	if len(desc) == 0 {
+		panic(name + " has not describer")
+	}
 
 	for i, d := range desc {
-		if strings.HasPrefix(d, "/") {
-			d = strings.TrimRight(d, "/")
-			h.Path = d
+		if strings.HasPrefix(d, "[") && strings.HasSuffix(d, "]") {
+			verb, ok := methods[strings.ToUpper(d)]
+			if !ok {
+				panic(name + " has invalid VERB")
+			}
+
+			h.Method = verb
 
 			continue
 		}
 
-		if strings.HasPrefix(d, "[") && strings.HasSuffix(d, "]") {
-			verb, ok := methods[strings.ToUpper(d)]
-			if !ok {
-				panic(fmt.Sprintf("%s has wrong @action describer, Invalid VERB", name))
-			}
-
-			h.Method = verb
+		if strings.HasPrefix(d, "/") {
+			d = strings.TrimRight(d, "/")
+			h.Path = d
 
 			continue
 		}
@@ -59,37 +104,33 @@ func (h *Handler[IN, OUT]) fix() {
 			typeAndContentType := strings.Split(d, "@")
 			h.ActionType = typeAndContentType[0]
 			h.ContentType = fmt.Sprintf("%s %s", typeAndContentType[1], desc[i+1])
+
 			break
-		} else {
-			h.ActionType = d
 		}
+
+		h.ActionType = d
 	}
 
-	h.setResponder()
+	h.setResponder(name)
 }
 
-func (h *Handler[IN, OUT]) getFixedDescriberArray() []string {
+func (h *Handler[IN, OUT]) getFixedDescriberFields() []string {
 	h.describer = new(describer)
 
 	comment := funcDescription(h.Action)
 	comments := strings.Split(comment, "\n")
 
-	for _, actionDescription := range comments {
-		if !strings.HasPrefix(actionDescription, "@action") {
+	for _, describer := range comments {
+		if !strings.HasPrefix(describer, "[") {
 			continue
 		}
 
-		desc := strings.Split(actionDescription, " ")
-		index := 0
+		desc := strings.Split(describer, " ")
 
-		for i := 0; i < len(desc); i++ {
-			if len(desc[i]) != 0 {
-				desc[index] = desc[i]
-				index++
-			}
+		_, ok := methods[strings.ToUpper(desc[0])]
+		if !ok {
+			continue
 		}
-
-		desc = desc[1:index]
 
 		return desc
 	}
@@ -97,64 +138,158 @@ func (h *Handler[IN, OUT]) getFixedDescriberArray() []string {
 	return []string{}
 }
 
-func (h *Handler[IN, OUT]) setResponder() {
-	if strings.Contains(h.ActionType, "html") || strings.Contains(h.ActionType, "tmpl") {
-		h.RespondFn = func(ctx *app.RequestContext, res any) {
-			ctx.HTML(h.Status, h.ActionType, res)
+func handle[IN Request, OUT any](handler *Handler[IN, OUT]) app.HandlerFunc {
+	return func(c context.Context, rctx *app.RequestContext) {
+		req, err := bind(handler, rctx)
+		if err != nil {
+			rctx.AbortWithStatusJSON(
+				http.StatusUnprocessableEntity,
+				errors.New(fmt.Sprintf( //nolint
+					"%s\n#Api=%s#Method=%s#Action=%s",
+					err.Error(),
+					handler.Path,
+					handler.Method,
+					funcPathAndName(handler.Action),
+				)),
+			)
+
+			return
 		}
 
+		ctx := &Context{
+			Context: c,
+			rc:      rctx,
+		}
+
+		res, err := handler.Action(ctx, req)
+		if err != nil {
+			handleError(rctx, err)
+
+			return
+		}
+
+		handler.RespondFn(rctx, res)
+	}
+}
+
+func handleError(ctx *app.RequestContext, err error) {
+	if dev {
+		devHandleError(ctx, err)
+	} else {
+		productHandleError(ctx, err)
+	}
+}
+
+func productHandleError(ctx *app.RequestContext, err error) {
+	switch t := err.(type) {
+	case *errors.Error:
+		status, ok := abortType[t]
+		if !ok {
+			ctx.AbortWithStatus(http.StatusInternalServerError)
+
+			return
+		}
+
+		t.Stack = ""
+		ctx.AbortWithStatusJSON(status, t)
+	default:
+		ctx.AbortWithStatus(http.StatusInternalServerError)
+	}
+}
+
+func devHandleError(ctx *app.RequestContext, err error) {
+	switch t := err.(type) {
+	case *errors.Error:
+		status, ok := abortType[t]
+		if !ok {
+			ctx.AbortWithStatusJSON(http.StatusInternalServerError, t)
+
+			return
+		}
+
+		ctx.AbortWithStatusJSON(status, t)
+	default:
+		ctx.AbortWithStatusJSON(http.StatusInternalServerError, err)
+	}
+}
+
+func bind[IN Request, OUT any](handler *Handler[IN, OUT], rctx *app.RequestContext) (req IN, err error) {
+	p := reflect.TypeOf(handler.Action).In(1)
+	if p.Kind() == reflect.Interface {
 		return
 	}
 
-	switch h.ActionType {
-	case "":
-		h.RespondFn = func(ctx *app.RequestContext, _ any) { ctx.Status(h.Status) }
-	case "json":
-		h.RespondFn = func(ctx *app.RequestContext, res any) { ctx.JSON(h.Status, res) }
-	case "json_pure":
-		h.RespondFn = func(ctx *app.RequestContext, res any) { ctx.PureJSON(h.Status, res) }
-	case "xml":
-		h.RespondFn = func(ctx *app.RequestContext, res any) { ctx.XML(h.Status, res) }
-	case "file":
-		h.RespondFn = func(ctx *app.RequestContext, res any) { ctx.File(fmt.Sprintf("%v", res)) }
-	case "text":
-		h.RespondFn = func(ctx *app.RequestContext, res any) {
-			_, err := ctx.WriteString(fmt.Sprintf("%s", res))
-			if err != nil {
-				panic(err)
-			}
-		}
-	case "redirect":
-		h.RespondFn = func(ctx *app.RequestContext, res any) {
-			ctx.Redirect(h.Status, []byte(fmt.Sprintf("%v", res)))
-		}
-	case "attachment":
-		h.RespondFn = func(ctx *app.RequestContext, res any) {
-			filepath := fmt.Sprintf("%v", res)
-			filename := strings.Split(filepath, "/")
-			ctx.FileAttachment(filepath, filename[len(filename)-1])
-		}
-	case "stream":
-		h.RespondFn = func(ctx *app.RequestContext, res any) {
-			ctx.SetContentType(h.ContentType)
+	req = reflect.New(p.Elem()).Interface().(IN)
 
-			reader := bytes.NewReader(reflect.ValueOf(res).Bytes())
-			if _, err := reader.WriteTo(ctx.Response.BodyWriter()); err != nil {
-				panic(err)
-			}
-		}
-	case "data":
-		h.RespondFn = func(ctx *app.RequestContext, res any) {
-			ctx.SetContentType(h.ContentType)
+	err = rctx.Bind(req)
 
-			ctx.Data(h.Status, h.ContentType, reflect.ValueOf(res).Bytes())
-		}
+	return
+}
 
-	case "render":
-		h.RespondFn = func(ctx *app.RequestContext, res any) {
-			ctx.Render(h.Status, res.(render.Render))
-		}
-	default:
-		panic("actionType in action describer not acceptable")
-	}
+var methods = map[string]string{
+	"[GET]":     http.MethodGet,
+	"[HEAD]":    http.MethodHead,
+	"[POST]":    http.MethodPost,
+	"[PUT]":     http.MethodPut,
+	"[PATCH]":   http.MethodPatch,
+	"[DELETE]":  http.MethodDelete,
+	"[CONNECT]": http.MethodConnect,
+	"[OPTIONS]": http.MethodOptions,
+	"[TRACE]":   http.MethodTrace,
+}
+
+type Request interface {
+	Validator
+}
+
+type Validator interface {
+	Validate(ctx *Context) error
+}
+
+type Empty struct{}
+
+func (e *Empty) Validate(*Context) error {
+	return nil
+}
+
+var abortType = map[*errors.Error]int{
+	errors.BadRequest:                    consts.StatusBadRequest,
+	errors.Unauthorized:                  consts.StatusUnauthorized,
+	errors.PaymentRequired:               consts.StatusPaymentRequired,
+	errors.Forbidden:                     consts.StatusForbidden,
+	errors.NotFound:                      consts.StatusNotFound,
+	errors.MethodNotAllowed:              consts.StatusMethodNotAllowed,
+	errors.NotAcceptable:                 consts.StatusNotAcceptable,
+	errors.ProxyAuthRequired:             consts.StatusProxyAuthRequired,
+	errors.RequestTimeout:                consts.StatusRequestTimeout,
+	errors.Conflict:                      consts.StatusConflict,
+	errors.Gone:                          consts.StatusGone,
+	errors.LengthRequired:                consts.StatusLengthRequired,
+	errors.PreconditionFailed:            consts.StatusPreconditionFailed,
+	errors.RequestEntityTooLarge:         consts.StatusRequestEntityTooLarge,
+	errors.RequestURITooLong:             consts.StatusRequestURITooLong,
+	errors.UnsupportedMediaType:          consts.StatusUnsupportedMediaType,
+	errors.RequestedRangeNotSatisfiable:  consts.StatusRequestedRangeNotSatisfiable,
+	errors.ExpectationFailed:             consts.StatusExpectationFailed,
+	errors.Teapot:                        consts.StatusTeapot,
+	errors.UnprocessableEntity:           consts.StatusUnprocessableEntity,
+	errors.Locked:                        consts.StatusLocked,
+	errors.FailedDependency:              consts.StatusFailedDependency,
+	errors.UpgradeRequired:               consts.StatusUpgradeRequired,
+	errors.PreconditionRequired:          consts.StatusPreconditionFailed,
+	errors.TooManyRequests:               consts.StatusTooManyRequests,
+	errors.RequestHeaderFieldsTooLarge:   consts.StatusRequestHeaderFieldsTooLarge,
+	errors.UnavailableForLegalReasons:    consts.StatusUnavailableForLegalReasons,
+	errors.NotImplemented:                consts.StatusNotImplemented,
+	errors.BadGateway:                    consts.StatusBadGateway,
+	errors.ServiceUnavailable:            consts.StatusServiceUnavailable,
+	errors.GatewayTimeout:                consts.StatusGatewayTimeout,
+	errors.HTTPVersionNotSupported:       consts.StatusHTTPVersionNotSupported,
+	errors.VariantAlsoNegotiates:         consts.StatusVariantAlsoNegotiates,
+	errors.InsufficientStorage:           consts.StatusInsufficientStorage,
+	errors.LoopDetected:                  consts.StatusLoopDetected,
+	errors.NotExtended:                   consts.StatusNotExtended,
+	errors.NetworkAuthenticationRequired: consts.StatusNetworkAuthenticationRequired,
+	errors.InternalServerError:           consts.StatusInternalServerError,
+	errors.AlreadyExist:                  consts.StatusConflict,
 }

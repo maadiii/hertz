@@ -5,44 +5,61 @@ import (
 	"github.com/maadiii/hertz/server"
 )
 
-// @action /api/v1/json/:id [GET] 200 json
-func Json(ctx *server.Context, in *JsonRequest) (out *JsonResponse, err error) {
-	out = &JsonResponse{
+func init() {
+	server.Handle(JSON)
+	server.Handle(PureJSON)
+	server.Handle(SomeData)
+}
+
+// [GET] /api/v1/json/:id 200 json
+func JSON(_ *server.Context, in *JSONRequest) (out *JSONResponse, err error) {
+	out = &JSONResponse{
 		ID:       in.ID,
 		Company:  "company",
 		Location: "location",
 		Number:   123,
 	}
 
-	return nil, errors.NotFound.Format("user sldkjf")
+	return
 }
 
-type JsonRequest struct {
-	ID string `path:"id"`
+type JSONRequest struct {
+	ID int `path:"id"`
+
+	ContentType string `header:"content-type"`
+	Accept      string `header:"accept"`
 }
 
-type JsonResponse struct {
-	ID       string `json:"id,omitempty"`
-	Company  string `json:"company,omitempty"`
-	Location string `json:"location,omitempty"`
-	Number   int    `json:"number,omitempty"`
-}
-
-// @action /api/v1/pureJson [GET] 200 json_pure
-func PureJson(ctx *server.Context, _ any) (out *PureJsonRespone, err error) {
-	out = &PureJsonRespone{
-		Html: "<p> Hello World </p>",
+func (r *JSONRequest) Validate(*server.Context) (err error) {
+	if r.ID < 1 {
+		err = errors.BadRequest.Format("invalid id")
 	}
 
 	return
 }
 
-type PureJsonRespone struct {
-	Html string `json:"html,omitempty"`
+type JSONResponse struct {
+	ID       int    `json:"id,omitempty"`
+	Company  string `json:"company,omitempty"`
+	Location string `json:"location,omitempty"`
+	Number   int    `json:"number,omitempty"`
 }
 
-// @action /api/v1/someJson [GET] 200 data@application/yaml; charset=utf-8
-func SomeData(ctx *server.Context, _ any) (out []byte, err error) {
+// [GET] /api/v1/pureJSON 200 json_pure
+func PureJSON(_ *server.Context, _ *server.Empty) (out *PureJSONRespone, err error) {
+	out = &PureJSONRespone{
+		HTML: "<p> Hello World </p>",
+	}
+
+	return
+}
+
+type PureJSONRespone struct {
+	HTML string `json:"html,omitempty"`
+}
+
+// [POST] /api/v1/someJSON 200 data@application/yaml; charset=utf-8
+func SomeData(_ *server.Context, _ *server.Empty) (out []byte, err error) {
 	out = []byte(`{"library": "hertzwrapper", "author": "Maadi Azizi"}`)
 
 	return

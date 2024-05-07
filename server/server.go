@@ -1,16 +1,23 @@
 package server
 
 import (
-	"context"
-	"fmt"
-	"net/http"
 	"strings"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/app/middlewares/server/recovery"
 	"github.com/cloudwego/hertz/pkg/app/server"
 	"github.com/cloudwego/hertz/pkg/common/config"
-	"github.com/maadiii/hertz/errors"
+)
+
+var (
+	s                *server.Hertz
+	dev              bool
+	uses             = make([]app.HandlerFunc, 0)
+	static           = make(map[string]string)
+	staticFile       = make(map[string]string)
+	noMethodHandlers = make([]app.HandlerFunc, 0)
+	noRouteHandlers  = make([]app.HandlerFunc, 0)
+	handlersMap      = make(map[string][]app.HandlerFunc, 0)
 )
 
 func Hertz(devMode bool, opts ...config.Option) *server.Hertz {
@@ -34,137 +41,12 @@ func Hertz(devMode bool, opts ...config.Option) *server.Hertz {
 	s.NoRoute(noRouteHandlers...)
 
 	for key, handlers := range handlersMap {
-		action := strings.Split(key, "::")
+		verbAndPath := strings.Split(key, "::")
 
-		s.Handle(action[0], action[1], handlers...)
+		s.Handle(verbAndPath[0], verbAndPath[1], handlers...)
 	}
 
 	return s
-}
-
-var (
-	s                *server.Hertz
-	dev              bool
-	uses             = make([]app.HandlerFunc, 0)
-	static           = make(map[string]string)
-	staticFile       = make(map[string]string)
-	noMethodHandlers = make([]app.HandlerFunc, 0)
-	noRouteHandlers  = make([]app.HandlerFunc, 0)
-	handlersMap      = make(map[string][]app.HandlerFunc, 0)
-)
-
-func Handle[IN any, OUT any](handlers ...func(*Context, IN) (OUT, error)) {
-	befores := make([]*Handler[IN, OUT], 0)
-	afters := make([]*Handler[IN, OUT], 0)
-	main := &Handler[IN, OUT]{}
-
-	for _, h := range handlers {
-		handler := &Handler[IN, OUT]{Action: h}
-		handler.fix()
-
-		if len(handler.Path) == 0 && len(handler.Method) == 0 {
-			befores = append(befores, handler)
-
-			continue
-		}
-
-		if len(handler.Path) != 0 && len(handler.Method) != 0 {
-			main = handler
-
-			continue
-		}
-
-		afters = append(afters, handler)
-	}
-
-	key := fmt.Sprintf("%s::%s::%d::%s", main.Method, main.Path, main.Status, main.ActionType)
-
-	for _, h := range befores {
-		h.describer = main.describer
-		handlersMap[key] = append(handlersMap[key], handle(h))
-	}
-
-	handlersMap[key] = append(handlersMap[key], handle(main))
-
-	for _, h := range afters {
-		h.describer = main.describer
-		handlersMap[key] = append(handlersMap[key], handle(h))
-	}
-}
-
-func handle[IN any, OUT any](handler *Handler[IN, OUT]) app.HandlerFunc {
-	return func(c context.Context, rctx *app.RequestContext) {
-		req, err := bind(handler, rctx)
-		if err != nil {
-			rctx.AbortWithStatusJSON(
-				http.StatusUnprocessableEntity,
-				errors.New(fmt.Sprintf( //nolint
-					"%s\n#Api=%s#Method=%s#Action=%s",
-					err.Error(),
-					handler.Path,
-					handler.Method,
-					funcPathAndName(handler.Action),
-				)),
-			)
-
-			return
-		}
-
-		ctx := &Context{
-			Context: c,
-			request: rctx,
-		}
-
-		res, err := handler.Action(ctx, req)
-		if err != nil {
-			handleError(rctx, err)
-
-			return
-		}
-
-		handler.RespondFn(rctx, res)
-	}
-}
-
-func handleError(ctx *app.RequestContext, err error) {
-	if dev {
-		devHandleError(ctx, err)
-	} else {
-		productHandleError(ctx, err)
-	}
-}
-
-func productHandleError(ctx *app.RequestContext, err error) {
-	switch t := err.(type) {
-	case *errors.Error:
-		status, ok := abortType[t]
-		if !ok {
-			ctx.AbortWithStatus(http.StatusInternalServerError)
-
-			return
-		}
-
-		t.Stack = ""
-		ctx.JSON(status, t)
-	default:
-		ctx.AbortWithStatus(http.StatusInternalServerError)
-	}
-}
-
-func devHandleError(ctx *app.RequestContext, err error) {
-	switch t := err.(type) {
-	case *errors.Error:
-		status, ok := abortType[t]
-		if !ok {
-			ctx.JSON(http.StatusInternalServerError, t)
-
-			return
-		}
-
-		ctx.JSON(status, t)
-	default:
-		ctx.JSON(http.StatusInternalServerError, err)
-	}
 }
 
 // NoMethod sets the handlers called when the HTTP method does not match.

@@ -15,8 +15,8 @@ func main() {
 
 // response type must implement github.com/cloudwego/hertz/pkg/app/server/render/render.Render interface
 //
-// @action /api/v1/yaml [GET] 200 render
-func Yaml(ctx *server.Context, _ any) (out YAML, err error) {
+// [GET] /api/v1/yaml 200 render
+func Yaml(_ *server.Context, _ *server.Empty) (out YAML, err error) {
 	out = YAML{Data: "some yaml data"}
 
 	return
@@ -25,8 +25,6 @@ func Yaml(ctx *server.Context, _ any) (out YAML, err error) {
 type YAML struct {
 	Data interface{}
 }
-
-var yamlContentType = "application/yaml; charset=utf-8"
 
 func (r YAML) Render(resp *protocol.Response) error {
 	r.WriteContentType(resp)
@@ -42,5 +40,5 @@ func (r YAML) Render(resp *protocol.Response) error {
 }
 
 func (r YAML) WriteContentType(resp *protocol.Response) {
-	resp.Header.SetContentType(yamlContentType)
+	resp.Header.SetContentType("application/yaml; charset=utf-8")
 }

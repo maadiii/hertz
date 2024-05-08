@@ -8,28 +8,32 @@ import (
 )
 
 func New(format string, args ...any) error {
-	stack := stack()
 	msg := fmt.Sprintf(format, args...)
 
-	return &Error{error: fmt.Errorf("%s\n", msg), Stack: fmt.Sprintf("%s\n%s", msg, stack)} //nolint
+	return &Error{Message: msg, Stack: stack()}
 }
 
 type Error struct {
-	error   `json:"error,omitempty"`
 	Message string `json:"message,omitempty"`
 	Params  []any  `json:"params,omitempty"`
 	Stack   string `json:"stack,omitempty"`
 }
 
 func (e Error) Error() string {
-	return e.error.Error() + e.Stack
+	msg := strings.Split(e.Message, " ")
+	index := 0
+
+	for i, v := range msg {
+		if strings.Contains(v, "[") {
+			msg[i] = fmt.Sprintf("%v", e.Params[index])
+			index++
+		}
+	}
+
+	return strings.Join(msg, " ") + "\n" + e.Stack
 }
 
 func (e *Error) Format(format string, args ...any) *Error {
-	msg := fmt.Sprintf(format, args...)
-	err := fmt.Errorf("%s\n", msg) //nolint
-	e.error = err
-
 	for i := range args {
 		index := strings.Index(format, "%")
 		format = format[:index] + fmt.Sprintf("[%d]", i) + format[index+2:]
@@ -37,7 +41,7 @@ func (e *Error) Format(format string, args ...any) *Error {
 
 	e.Message = format
 	e.Params = args
-	e.Stack = fmt.Sprintf("%s\n%s", msg, stack())
+	e.Stack = stack()
 
 	return e
 }

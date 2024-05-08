@@ -5,6 +5,6 @@ import (
 )
 
 func main() {
-	hertz := server.Hertz(false, server.WithHostPorts(":8080"))
+	hertz := server.Hertz(true, server.WithHostPorts(":8080"))
 	hertz.Spin()
 }

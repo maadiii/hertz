@@ -16,10 +16,6 @@ type Context struct {
 	rc              *app.RequestContext
 }
 
-func (ctx *Context) AbortWithMsg(msg string, code int) {
-	ctx.rc.AbortWithMsg(msg, code)
-}
-
 // The host is valid until returning from RequestHandler.
 func (ctx *Context) Host() []byte {
 	return ctx.rc.Host()

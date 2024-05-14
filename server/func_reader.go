@@ -12,19 +12,15 @@ import (
 	"strings"
 )
 
-func funcPathAndName(f interface{}) string {
-	return runtime.FuncForPC(reflect.ValueOf(f).Pointer()).Name()
-}
-
-func funcName(f interface{}) string {
-	splitFuncName := strings.Split(funcPathAndName(f), ".")
-
-	return splitFuncName[len(splitFuncName)-1]
+func runtimeFunc(f interface{}) *runtime.Func {
+	return runtime.FuncForPC(reflect.ValueOf(f).Pointer())
 }
 
 func funcDescription(f interface{}) string {
-	fileName, _ := runtime.FuncForPC(reflect.ValueOf(f).Pointer()).FileLine(0)
-	funcName := funcName(f)
+	fn := runtimeFunc(f)
+	fileName, _ := fn.FileLine(0)
+	splitedFuncName := strings.Split(fn.Name(), ".")
+	funcName := splitedFuncName[len(splitedFuncName)-1]
 	fset := token.NewFileSet()
 
 	// Parse src

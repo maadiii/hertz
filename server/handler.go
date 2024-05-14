@@ -52,6 +52,40 @@ func Handle[IN Request, OUT any](handlers ...func(*Context, IN) (OUT, error)) {
 	}
 }
 
+func handle[IN Request, OUT any](handler *Handler[IN, OUT]) app.HandlerFunc {
+	return func(c context.Context, reqContext *app.RequestContext) {
+		req, err := bind(handler, reqContext)
+		if err != nil {
+			reqContext.AbortWithStatusJSON(
+				http.StatusUnprocessableEntity,
+				errors.New(fmt.Sprintf( //nolint
+					"%s\tAPI=%s\tMethod=%s\tHandler=%s",
+					err.Error(),
+					handler.Path,
+					handler.Method,
+					runtimeFunc(handler.Action).Name(),
+				)),
+			)
+
+			return
+		}
+
+		ctx := &Context{
+			Context: c,
+			rc:      reqContext,
+		}
+
+		res, err := handler.Action(ctx, req)
+		if err != nil {
+			handleError(reqContext, err)
+
+			return
+		}
+
+		handler.RespondFn(reqContext, res)
+	}
+}
+
 type Handler[IN Request, OUT any] struct {
 	Action    func(*Context, IN) (OUT, error)
 	RespondFn func(ctx *app.RequestContext, response any)
@@ -68,7 +102,7 @@ type describer struct {
 }
 
 func (h *Handler[IN, OUT]) fix() {
-	name := funcPathAndName(h.Action)
+	name := runtimeFunc(h.Action).Name()
 	desc := h.getFixedDescriberFields()
 
 	if len(desc) == 0 {
@@ -136,40 +170,6 @@ func (h *Handler[IN, OUT]) getFixedDescriberFields() []string {
 	}
 
 	return []string{}
-}
-
-func handle[IN Request, OUT any](handler *Handler[IN, OUT]) app.HandlerFunc {
-	return func(c context.Context, rctx *app.RequestContext) {
-		req, err := bind(handler, rctx)
-		if err != nil {
-			rctx.AbortWithStatusJSON(
-				http.StatusUnprocessableEntity,
-				errors.New(fmt.Sprintf( //nolint
-					"%s\n#Api=%s#Method=%s#Action=%s",
-					err.Error(),
-					handler.Path,
-					handler.Method,
-					funcPathAndName(handler.Action),
-				)),
-			)
-
-			return
-		}
-
-		ctx := &Context{
-			Context: c,
-			rc:      rctx,
-		}
-
-		res, err := handler.Action(ctx, req)
-		if err != nil {
-			handleError(rctx, err)
-
-			return
-		}
-
-		handler.RespondFn(rctx, res)
-	}
 }
 
 func handleError(ctx *app.RequestContext, err error) {

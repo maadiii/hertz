@@ -43,14 +43,6 @@ func (ctx *Context) Value(key any) any {
 	return ctx.rc.Value(key)
 }
 
-func (ctx *Context) SetIdentity(identity Identity) {
-	ctx.rc.Set(identityKey, identity)
-}
-
-func (ctx *Context) Identity() Identity {
-	return ctx.rc.Value(identityKey).(Identity)
-}
-
 // ClientIP tries to parse the headers in [X-Real-Ip, X-Forwarded-For].
 // It calls RemoteIP() under the hood. If it cannot satisfy the requirements,
 // use engine.SetClientIPFunc to inject your own implementation.
@@ -88,6 +80,11 @@ func (ctx *Context) FullPath() string {
 // If value == "", this method removes the header `ctx.Response.Header.Del(key)`.
 func (ctx *Context) SetHeader(key, value string) {
 	ctx.rc.Header(key, value)
+}
+
+// GetHeader returns value from request headers.
+func (ctx *Context) GetHeader(key string) []byte {
+	return ctx.rc.GetHeader(key)
 }
 
 // SaveUploadedFile uploads the form file to specific dst.
@@ -158,7 +155,3 @@ func (ctx *Context) URI() *protocol.URI {
 func (ctx *Context) UserAgent() []byte {
 	return ctx.rc.UserAgent()
 }
-
-type Identity map[string]any
-
-const identityKey = "identity"

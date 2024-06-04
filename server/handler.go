@@ -13,43 +13,17 @@ import (
 	"github.com/maadiii/hertz/errors"
 )
 
-func Handle[IN Request, OUT any](handlers ...func(*Context, IN) (OUT, error)) {
-	befores := make([]*Handler[IN, OUT], 0)
-	afters := make([]*Handler[IN, OUT], 0)
-	main := &Handler[IN, OUT]{}
+func Handle[IN Request, OUT any](action func(*Context, IN) (OUT, error)) {
+	handler := &Handler[IN, OUT]{Action: action}
+	handler.fix()
 
-	for _, h := range handlers {
-		handler := &Handler[IN, OUT]{Action: h}
-		handler.fix()
+	key := fmt.Sprintf("%s::%s::%d::%s", handler.Method, handler.Path, handler.Status, handler.ActionType)
 
-		if len(handler.Path) == 0 && len(handler.Method) == 0 {
-			befores = append(befores, handler)
-
-			continue
-		}
-
-		if len(handler.Path) != 0 && len(handler.Method) != 0 {
-			main = handler
-
-			continue
-		}
-
-		afters = append(afters, handler)
+	if handler.identifierDescriber != nil {
+		handlersMap[key] = append(handlersMap[key], identify(handler))
 	}
 
-	key := fmt.Sprintf("%s::%s::%d::%s", main.Method, main.Path, main.Status, main.ActionType)
-
-	for _, h := range befores {
-		h.describer = main.describer
-		handlersMap[key] = append(handlersMap[key], handle(h))
-	}
-
-	handlersMap[key] = append(handlersMap[key], handle(main))
-
-	for _, h := range afters {
-		h.describer = main.describer
-		handlersMap[key] = append(handlersMap[key], handle(h))
-	}
+	handlersMap[key] = append(handlersMap[key], handle(handler))
 }
 
 func handle[IN Request, OUT any](handler *Handler[IN, OUT]) app.HandlerFunc {
@@ -70,10 +44,7 @@ func handle[IN Request, OUT any](handler *Handler[IN, OUT]) app.HandlerFunc {
 			return
 		}
 
-		ctx := &Context{
-			Context: c,
-			rc:      reqContext,
-		}
+		ctx := &Context{c, reqContext}
 
 		res, err := handler.Action(ctx, req)
 		if err != nil {
@@ -90,10 +61,11 @@ type Handler[IN Request, OUT any] struct {
 	Action    func(*Context, IN) (OUT, error)
 	RespondFn func(ctx *app.RequestContext, response any)
 
-	*describer
+	*apiDescriber
+	*identifierDescriber
 }
 
-type describer struct {
+type apiDescriber struct {
 	Path        string
 	Method      string
 	Status      int
@@ -101,15 +73,27 @@ type describer struct {
 	ActionType  string
 }
 
-func (h *Handler[IN, OUT]) fix() {
-	name := runtimeFunc(h.Action).Name()
-	desc := h.getFixedDescriberFields()
+type identifierDescriber struct {
+	Roles       []string
+	Permissions []string
+}
 
-	if len(desc) == 0 {
+func (h *Handler[IN, OUT]) fix() {
+	comment := funcDescription(h.Action)
+	comments := strings.Split(comment, "\n")
+	name := runtimeFunc(h.Action).Name()
+
+	h.fixAPIDescriber(name, comments)
+	h.fixIdentifierDesciber(comments)
+}
+
+func (h *Handler[IN, OUT]) fixAPIDescriber(name string, comments []string) {
+	apiDescriber := h.getFixedAPIDescriberFields(comments)
+	if len(apiDescriber) == 0 {
 		panic(name + " has not describer")
 	}
 
-	for i, d := range desc {
+	for i, d := range apiDescriber {
 		if strings.HasPrefix(d, "[") && strings.HasSuffix(d, "]") {
 			verb, ok := methods[strings.ToUpper(d)]
 			if !ok {
@@ -137,7 +121,7 @@ func (h *Handler[IN, OUT]) fix() {
 		if strings.Contains(d, "@") {
 			typeAndContentType := strings.Split(d, "@")
 			h.ActionType = typeAndContentType[0]
-			h.ContentType = fmt.Sprintf("%s %s", typeAndContentType[1], desc[i+1])
+			h.ContentType = fmt.Sprintf("%s %s", typeAndContentType[1], apiDescriber[i+1])
 
 			break
 		}
@@ -148,11 +132,8 @@ func (h *Handler[IN, OUT]) fix() {
 	h.setResponder(name)
 }
 
-func (h *Handler[IN, OUT]) getFixedDescriberFields() []string {
-	h.describer = new(describer)
-
-	comment := funcDescription(h.Action)
-	comments := strings.Split(comment, "\n")
+func (h *Handler[IN, OUT]) getFixedAPIDescriberFields(comments []string) []string {
+	h.apiDescriber = new(apiDescriber)
 
 	for _, describer := range comments {
 		if !strings.HasPrefix(describer, "[") {
@@ -170,6 +151,25 @@ func (h *Handler[IN, OUT]) getFixedDescriberFields() []string {
 	}
 
 	return []string{}
+}
+
+func (h *Handler[IN, OUT]) fixIdentifierDesciber(comments []string) {
+	h.identifierDescriber = new(identifierDescriber)
+
+	for _, describer := range comments {
+		if !strings.HasPrefix(describer, "@authorize") {
+			continue
+		}
+
+		describer = strings.ReplaceAll(describer, " ", "")
+		describer = strings.Replace(describer, "@authorize(", "", 1)
+		describer = strings.Replace(describer, ")", "", 1)
+
+		before, after, _ := strings.Cut(describer, "...")
+
+		h.identifierDescriber.Roles = strings.Split(before, ",")
+		h.identifierDescriber.Permissions = strings.Split(after, ",")
+	}
 }
 
 func handleError(ctx *app.RequestContext, err error) {

@@ -12,6 +12,7 @@ func init() {
 }
 
 // [GET] /api/v1/json/:id 200 json
+// @authorize(role1, role2 ... permission1, permission2)
 func JSON(_ *server.Context, in *JSONRequest) (out *JSONResponse, err error) {
 	out = &JSONResponse{
 		ID:       in.ID,
@@ -25,9 +26,6 @@ func JSON(_ *server.Context, in *JSONRequest) (out *JSONResponse, err error) {
 
 type JSONRequest struct {
 	ID int `path:"id"`
-
-	ContentType string `header:"content-type"`
-	Accept      string `header:"accept"`
 }
 
 func (r *JSONRequest) Validate(*server.Context) (err error) {

@@ -13,7 +13,7 @@ import (
 	"github.com/maadiii/hertz/errors"
 )
 
-func Handle[IN Request, OUT any](action func(*Context, IN) (OUT, error)) {
+func Handle[IN any, OUT any](action func(context.Context, *Request, IN) (OUT, error)) {
 	handler := &Handler[IN, OUT]{Action: action}
 	handler.fix()
 
@@ -26,9 +26,9 @@ func Handle[IN Request, OUT any](action func(*Context, IN) (OUT, error)) {
 	handlersMap[key] = append(handlersMap[key], handle(handler))
 }
 
-func handle[IN Request, OUT any](handler *Handler[IN, OUT]) app.HandlerFunc {
+func handle[IN any, OUT any](handler *Handler[IN, OUT]) app.HandlerFunc {
 	return func(c context.Context, reqContext *app.RequestContext) {
-		req, err := bind(handler, reqContext)
+		reqType, err := bind(handler, reqContext)
 		if err != nil {
 			reqContext.AbortWithStatusJSON(
 				http.StatusUnprocessableEntity,
@@ -44,9 +44,9 @@ func handle[IN Request, OUT any](handler *Handler[IN, OUT]) app.HandlerFunc {
 			return
 		}
 
-		ctx := &Context{c, reqContext}
+		req := &Request{reqContext}
 
-		res, err := handler.Action(ctx, req)
+		res, err := handler.Action(c, req, reqType)
 		if err != nil {
 			handleError(reqContext, err)
 
@@ -57,9 +57,9 @@ func handle[IN Request, OUT any](handler *Handler[IN, OUT]) app.HandlerFunc {
 	}
 }
 
-type Handler[IN Request, OUT any] struct {
-	Action    func(*Context, IN) (OUT, error)
-	RespondFn func(ctx *app.RequestContext, response any)
+type Handler[IN any, OUT any] struct {
+	Action    func(context.Context, *Request, IN) (OUT, error)
+	RespondFn func(rctx *app.RequestContext, response any)
 
 	*apiDescriber
 	*identifierDescriber
@@ -161,60 +161,66 @@ func (h *Handler[IN, OUT]) fixIdentifierDesciber(comments []string) {
 			continue
 		}
 
+		describer, _ = strings.CutPrefix(describer, "@authorize")
 		describer = strings.ReplaceAll(describer, " ", "")
-		describer = strings.Replace(describer, "@authorize(", "", 1)
-		describer = strings.Replace(describer, ")", "", 1)
+		describer, _ = strings.CutPrefix(describer, "(")
+		describer, _ = strings.CutSuffix(describer, ")")
 
 		before, after, _ := strings.Cut(describer, "...")
 
-		h.identifierDescriber.Roles = strings.Split(before, ",")
-		h.identifierDescriber.Permissions = strings.Split(after, ",")
+		if len(before) > 0 {
+			h.identifierDescriber.Roles = strings.Split(before, ",")
+		}
+
+		if len(after) > 0 {
+			h.identifierDescriber.Permissions = strings.Split(after, ",")
+		}
 	}
 }
 
-func handleError(ctx *app.RequestContext, err error) {
+func handleError(rctx *app.RequestContext, err error) {
 	if dev {
-		devHandleError(ctx, err)
+		devHandleError(rctx, err)
 	} else {
-		productHandleError(ctx, err)
+		productHandleError(rctx, err)
 	}
 }
 
-func productHandleError(ctx *app.RequestContext, err error) {
+func productHandleError(rctx *app.RequestContext, err error) {
 	switch t := err.(type) {
 	case *errors.Error:
 		status, ok := abortType[t]
 		if !ok {
-			ctx.AbortWithStatus(http.StatusInternalServerError)
+			rctx.AbortWithStatus(http.StatusInternalServerError)
 
 			return
 		}
 
 		t.Stack = ""
-		ctx.AbortWithStatusJSON(status, t)
+		rctx.AbortWithStatusJSON(status, t)
 	default:
-		ctx.AbortWithStatus(http.StatusInternalServerError)
+		rctx.AbortWithStatus(http.StatusInternalServerError)
 	}
 }
 
-func devHandleError(ctx *app.RequestContext, err error) {
+func devHandleError(rctx *app.RequestContext, err error) {
 	switch t := err.(type) {
 	case *errors.Error:
 		status, ok := abortType[t]
 		if !ok {
-			ctx.AbortWithStatusJSON(http.StatusInternalServerError, t)
+			rctx.AbortWithStatusJSON(http.StatusInternalServerError, t)
 
 			return
 		}
 
-		ctx.AbortWithStatusJSON(status, t)
+		rctx.AbortWithStatusJSON(status, t)
 	default:
-		ctx.AbortWithStatusJSON(http.StatusInternalServerError, err)
+		rctx.AbortWithStatusJSON(http.StatusInternalServerError, err)
 	}
 }
 
-func bind[IN Request, OUT any](handler *Handler[IN, OUT], rctx *app.RequestContext) (req IN, err error) {
-	p := reflect.TypeOf(handler.Action).In(1)
+func bind[IN any, OUT any](handler *Handler[IN, OUT], rctx *app.RequestContext) (req IN, err error) {
+	p := reflect.TypeOf(handler.Action).In(2)
 	if p.Kind() == reflect.Interface {
 		return
 	}
@@ -236,20 +242,6 @@ var methods = map[string]string{
 	"[CONNECT]": http.MethodConnect,
 	"[OPTIONS]": http.MethodOptions,
 	"[TRACE]":   http.MethodTrace,
-}
-
-type Request interface {
-	Validator
-}
-
-type Validator interface {
-	Validate(ctx *Context) error
-}
-
-type Empty struct{}
-
-func (e *Empty) Validate(*Context) error {
-	return nil
 }
 
 var abortType = map[*errors.Error]int{

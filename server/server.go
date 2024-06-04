@@ -15,9 +15,9 @@ var (
 	uses             = make([]app.HandlerFunc, 0)
 	static           = make(map[string]string)
 	staticFile       = make(map[string]string)
-	noMethodHandlers = make([]app.HandlerFunc, 0)
-	noRouteHandlers  = make([]app.HandlerFunc, 0)
 	handlersMap      = make(map[string][]app.HandlerFunc, 0)
+	noRouteHandlers  = make([]app.HandlerFunc, 0)
+	noMethodHandlers = make([]app.HandlerFunc, 0)
 )
 
 func Hertz(devMode bool, opts ...config.Option) *server.Hertz {

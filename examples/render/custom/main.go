@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+
 	"github.com/cloudwego/hertz/pkg/protocol"
 	"github.com/maadiii/hertz/server"
 	"gopkg.in/yaml.v3"
@@ -16,7 +18,7 @@ func main() {
 // response type must implement github.com/cloudwego/hertz/pkg/app/server/render/render.Render interface
 //
 // [GET] /api/v1/yaml 200 render
-func Yaml(_ *server.Context, _ *server.Empty) (out YAML, err error) {
+func Yaml(_ context.Context, _ *server.Request, _ any) (out YAML, err error) {
 	out = YAML{Data: "some yaml data"}
 
 	return

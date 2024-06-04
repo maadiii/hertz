@@ -1,7 +1,9 @@
 package main
 
 import (
-	"github.com/maadiii/hertz/errors"
+	"context"
+
+	"github.com/cloudwego/hertz/pkg/protocol/consts"
 	"github.com/maadiii/hertz/server"
 )
 
@@ -12,44 +14,60 @@ func main() {
 	hertz.Spin()
 }
 
-func identifier(c *server.Context, roles []string, permissions ...string) error {
-	incomeRole := string(c.GetHeader("role"))
-	if len(incomeRole) == 0 {
-		return errors.Unauthorized
+func identifier(_ context.Context, req *server.Request, roles []string, permissions ...string) {
+	if len(req.GetHeader("authorize")) == 0 {
+		req.AbortWithStatus(consts.StatusUnauthorized)
+
+		return
 	}
 
-	var matchRole bool
+	if len(roles) != 0 {
+		var matchRole bool
 
-	for _, r := range roles {
-		if incomeRole == r {
-			matchRole = true
+		incomeRole := string(req.GetHeader("role"))
+		if len(incomeRole) == 0 {
+			req.AbortWithStatus(consts.StatusUnauthorized)
+
+			return
+		}
+
+		for _, r := range roles {
+			if incomeRole == r {
+				matchRole = true
+			}
+		}
+
+		if !matchRole {
+			req.AbortWithStatus(consts.StatusForbidden)
+
+			return
 		}
 	}
 
-	if !matchRole {
-		return errors.Forbidden
-	}
+	if len(permissions) != 0 {
+		var matchPermission bool
 
-	incomePerm := string(c.GetHeader("perm"))
-	if len(incomePerm) == 0 {
-		return errors.Forbidden
-	}
+		incomePerm := string(req.GetHeader("perm"))
+		if len(incomePerm) == 0 {
+			req.AbortWithStatus(consts.StatusForbidden)
 
-	var matchPermission bool
-
-	for _, p := range permissions {
-		if incomePerm == p {
-			matchPermission = true
+			return
 		}
-	}
 
-	if !matchPermission {
-		return errors.Forbidden
+		for _, p := range permissions {
+			if incomePerm == p {
+				matchPermission = true
+			}
+		}
+
+		if !matchPermission {
+			req.AbortWithStatus(consts.StatusForbidden)
+
+			return
+		}
 	}
 
 	identity := server.Identity{"id": 1, "username": "maadi"}
 
-	c.SetIdentity(identity)
-
-	return nil
+	req.SetIdentity(identity)
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"log"
 
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 	"github.com/maadiii/hertz/server"
@@ -9,6 +10,7 @@ import (
 
 func main() {
 	server.SetIdentifier(identifier)
+	server.AddDecorator("decorator", decorator)
 
 	hertz := server.Hertz(true, server.WithHostPorts(":8080"))
 	hertz.Spin()
@@ -70,4 +72,12 @@ func identifier(_ context.Context, req *server.Request, roles []string, permissi
 	identity := server.Identity{"id": 1, "username": "maadi"}
 
 	req.SetIdentity(identity)
+}
+
+func decorator(c context.Context, req *server.Request) {
+	log.Println("It's just decorator", "BEFORE")
+
+	req.Next(c)
+
+	log.Println("It's just decorator", "AFTER")
 }

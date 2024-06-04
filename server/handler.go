@@ -15,12 +15,18 @@ import (
 
 func Handle[IN any, OUT any](action func(context.Context, *Request, IN) (OUT, error)) {
 	handler := &Handler[IN, OUT]{Action: action}
-	handler.fix()
+	handler.fixAPIDescriber()
+	handler.fixIdentifierDesciber()
 
 	key := fmt.Sprintf("%s::%s::%d::%s", handler.Method, handler.Path, handler.Status, handler.ActionType)
 
 	if handler.identifierDescriber != nil {
 		handlersMap[key] = append(handlersMap[key], identify(handler))
+	}
+
+	decorators := handler.getDecorators()
+	for _, dec := range decorators {
+		handlersMap[key] = append(handlersMap[key], decorate(handler.Method, dec))
 	}
 
 	handlersMap[key] = append(handlersMap[key], handle(handler))
@@ -78,17 +84,12 @@ type identifierDescriber struct {
 	Permissions []string
 }
 
-func (h *Handler[IN, OUT]) fix() {
+func (h *Handler[IN, OUT]) fixAPIDescriber() {
 	comment := funcDescription(h.Action)
 	comments := strings.Split(comment, "\n")
 	name := runtimeFunc(h.Action).Name()
-
-	h.fixAPIDescriber(name, comments)
-	h.fixIdentifierDesciber(comments)
-}
-
-func (h *Handler[IN, OUT]) fixAPIDescriber(name string, comments []string) {
 	apiDescriber := h.getFixedAPIDescriberFields(comments)
+
 	if len(apiDescriber) == 0 {
 		panic(name + " has not describer")
 	}
@@ -153,7 +154,9 @@ func (h *Handler[IN, OUT]) getFixedAPIDescriberFields(comments []string) []strin
 	return []string{}
 }
 
-func (h *Handler[IN, OUT]) fixIdentifierDesciber(comments []string) {
+func (h *Handler[IN, OUT]) fixIdentifierDesciber() {
+	comment := funcDescription(h.Action)
+	comments := strings.Split(comment, "\n")
 	h.identifierDescriber = new(identifierDescriber)
 
 	for _, describer := range comments {
@@ -176,6 +179,24 @@ func (h *Handler[IN, OUT]) fixIdentifierDesciber(comments []string) {
 			h.identifierDescriber.Permissions = strings.Split(after, ",")
 		}
 	}
+}
+
+func (h *Handler[IN, OUT]) getDecorators() (decorators []string) {
+	comment := funcDescription(h.Action)
+	comments := strings.Split(comment, "\n")
+
+	for _, describer := range comments {
+		if !strings.HasPrefix(describer, "@") ||
+			strings.HasPrefix(describer, "@authorize") {
+			continue
+		}
+
+		decorator, _ := strings.CutPrefix(describer, "@")
+
+		decorators = append(decorators, decorator)
+	}
+
+	return
 }
 
 func handleError(rctx *app.RequestContext, err error) {

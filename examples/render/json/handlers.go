@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/maadiii/hertz/errors"
 	"github.com/maadiii/hertz/server"
@@ -14,12 +13,10 @@ func init() {
 	server.Handle(SomeData)
 }
 
+// @authorize(role1 ... perm1)
+// @decorator
 // [GET] /api/v1/json/:id 200 json
-// @authorize(...perm1)
 func JSON(c context.Context, _ *server.Request, in *JSONRequest) (out *JSONResponse, err error) {
-	a := c.Value("name")
-	fmt.Println(a)
-
 	out = &JSONResponse{
 		ID:       in.ID,
 		Company:  "company",

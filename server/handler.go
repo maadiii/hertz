@@ -218,6 +218,7 @@ func productHandleError(rctx *app.RequestContext, err error) {
 		}
 
 		t.Stack = ""
+		t.Message = strings.ToUpper(t.Message)
 		rctx.AbortWithStatusJSON(status, t)
 	default:
 		rctx.AbortWithStatus(http.StatusInternalServerError)
@@ -234,6 +235,7 @@ func devHandleError(rctx *app.RequestContext, err error) {
 			return
 		}
 
+		t.Message = strings.ToUpper(t.Message)
 		rctx.AbortWithStatusJSON(status, t)
 	default:
 		rctx.AbortWithStatusJSON(http.StatusInternalServerError, err)

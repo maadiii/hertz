@@ -13,6 +13,10 @@ func New(format string, args ...any) error {
 	return &Error{Message: msg, Stack: stack()}
 }
 
+func Wrap(err error) error {
+	return &Error{Message: err.Error(), Stack: stack()}
+}
+
 type Error struct {
 	Message string `json:"message,omitempty"`
 	Params  []any  `json:"params,omitempty"`

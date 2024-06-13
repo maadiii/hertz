@@ -157,12 +157,13 @@ func (h *Handler[IN, OUT]) getFixedAPIDescriberFields(comments []string) []strin
 func (h *Handler[IN, OUT]) fixIdentifierDesciber() {
 	comment := funcDescription(h.Action)
 	comments := strings.Split(comment, "\n")
-	h.identifierDescriber = new(identifierDescriber)
 
 	for _, describer := range comments {
 		if !strings.HasPrefix(describer, "@authorize") {
 			continue
 		}
+
+		h.identifierDescriber = new(identifierDescriber)
 
 		describer, _ = strings.CutPrefix(describer, "@authorize")
 		describer = strings.ReplaceAll(describer, " ", "")
@@ -219,6 +220,7 @@ func productHandleError(rctx *app.RequestContext, err error) {
 
 		t.Stack = ""
 		t.Message = strings.ToUpper(t.Message)
+		t.Message = strings.ReplaceAll(t.Message, " ", "_")
 		rctx.AbortWithStatusJSON(status, t)
 	default:
 		rctx.AbortWithStatus(http.StatusInternalServerError)
@@ -236,6 +238,7 @@ func devHandleError(rctx *app.RequestContext, err error) {
 		}
 
 		t.Message = strings.ToUpper(t.Message)
+		t.Message = strings.ReplaceAll(t.Message, " ", "_")
 		rctx.AbortWithStatusJSON(status, t)
 	default:
 		rctx.AbortWithStatusJSON(http.StatusInternalServerError, err)

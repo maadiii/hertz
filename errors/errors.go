@@ -63,7 +63,7 @@ func As(err error, target any) bool {
 }
 
 func stack() string {
-	buf := make([]byte, 512)
+	buf := make([]byte, 1024)
 	runtime.Stack(buf, false)
 	lines := strings.Split(string(buf), "\n")
 

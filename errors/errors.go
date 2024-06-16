@@ -7,16 +7,6 @@ import (
 	"strings"
 )
 
-func New(format string, args ...any) error {
-	msg := fmt.Sprintf(format, args...)
-
-	return &Error{Message: msg, Stack: stack()}
-}
-
-func Wrap(err error) error {
-	return &Error{Message: err.Error(), Stack: stack()}
-}
-
 type Error struct {
 	Message string `json:"message,omitempty"`
 	Params  []any  `json:"params,omitempty"`
@@ -37,7 +27,7 @@ func (e Error) Error() string {
 	return strings.Join(msg, " ") + "\n" + e.Stack
 }
 
-func (e *Error) Format(format string, args ...any) *Error {
+func (e *Error) Format(format string, args ...any) error {
 	for i := range args {
 		index := strings.Index(format, "%")
 		format = format[:index] + fmt.Sprintf("[%d]", i) + format[index+2:]
@@ -48,6 +38,24 @@ func (e *Error) Format(format string, args ...any) *Error {
 	e.Stack = stack()
 
 	return e
+}
+
+// If error does not have any message to use with Format method use wrap method to wrap it
+func (e *Error) Wrap(err error) error {
+	e.Message = err.Error()
+	e.Stack = stack()
+
+	return e
+}
+
+func New(format string, args ...any) error {
+	msg := fmt.Sprintf(format, args...)
+
+	return &Error{Message: msg, Stack: stack()}
+}
+
+func Wrap(err error) error {
+	return &Error{Message: err.Error(), Stack: stack()}
 }
 
 func Join(errs ...error) error {

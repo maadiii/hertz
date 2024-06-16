@@ -281,6 +281,7 @@ var abortType = map[*errors.Error]int{
 	errors.ProxyAuthRequired:             consts.StatusProxyAuthRequired,
 	errors.RequestTimeout:                consts.StatusRequestTimeout,
 	errors.Conflict:                      consts.StatusConflict,
+	errors.AlreadyExist:                  consts.StatusConflict,
 	errors.Gone:                          consts.StatusGone,
 	errors.LengthRequired:                consts.StatusLengthRequired,
 	errors.PreconditionFailed:            consts.StatusPreconditionFailed,
@@ -298,6 +299,7 @@ var abortType = map[*errors.Error]int{
 	errors.TooManyRequests:               consts.StatusTooManyRequests,
 	errors.RequestHeaderFieldsTooLarge:   consts.StatusRequestHeaderFieldsTooLarge,
 	errors.UnavailableForLegalReasons:    consts.StatusUnavailableForLegalReasons,
+	errors.InternalServerError:           consts.StatusInternalServerError,
 	errors.NotImplemented:                consts.StatusNotImplemented,
 	errors.BadGateway:                    consts.StatusBadGateway,
 	errors.ServiceUnavailable:            consts.StatusServiceUnavailable,
@@ -308,6 +310,6 @@ var abortType = map[*errors.Error]int{
 	errors.LoopDetected:                  consts.StatusLoopDetected,
 	errors.NotExtended:                   consts.StatusNotExtended,
 	errors.NetworkAuthenticationRequired: consts.StatusNetworkAuthenticationRequired,
-	errors.InternalServerError:           consts.StatusInternalServerError,
-	errors.AlreadyExist:                  consts.StatusConflict,
+
+	errors.Retry: 599,
 }

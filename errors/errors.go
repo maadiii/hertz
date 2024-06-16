@@ -124,4 +124,5 @@ var (
 	LoopDetected                  = &Error{} //nolint
 	NotExtended                   = &Error{} //nolint
 	NetworkAuthenticationRequired = &Error{} //nolint
+	Retry                         = &Error{} //nolint
 )

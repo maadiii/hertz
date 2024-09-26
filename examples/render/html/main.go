@@ -9,8 +9,8 @@ import (
 )
 
 func main() {
-	server.Handle(Index)
-	server.Handle(Raw)
+	server.Register(Index)
+	server.Register(Raw)
 
 	hertz := server.Hertz(true, server.WithHostPorts(":8080"))
 

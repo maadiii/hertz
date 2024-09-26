@@ -15,7 +15,7 @@ func (h *Handler[IN, OUT]) setResponder(name string) {
 		return
 	}
 
-	switch h.ActionType {
+	switch h.ResponderType {
 	case "":
 		h.RespondFn = func(ctx *app.RequestContext, _ any) { ctx.Status(h.Status) }
 	case "json":
@@ -44,9 +44,9 @@ func (h *Handler[IN, OUT]) setResponder(name string) {
 }
 
 func (h *Handler[IN, OUT]) setTemplateResponder() bool {
-	if strings.Contains(h.ActionType, "html") || strings.Contains(h.ActionType, "tmpl") {
+	if strings.Contains(h.ResponderType, "html") || strings.Contains(h.ResponderType, "tmpl") {
 		h.RespondFn = func(ctx *app.RequestContext, res any) {
-			ctx.HTML(h.Status, h.ActionType, res)
+			ctx.HTML(h.Status, h.ResponderType, res)
 		}
 
 		return true

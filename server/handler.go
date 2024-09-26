@@ -13,12 +13,12 @@ import (
 	"github.com/maadiii/hertz/errors"
 )
 
-func Handle[IN any, OUT any](action func(context.Context, *Request, IN) (OUT, error)) {
-	handler := &Handler[IN, OUT]{Action: action}
+func Register[IN any, OUT any](action func(context.Context, *Request, IN) (OUT, error)) {
+	handler := &Handler[IN, OUT]{HandlerFn: action}
 	handler.fixAPIDescriber()
 	handler.fixIdentifierDesciber()
 
-	key := fmt.Sprintf("%s::%s::%d::%s", handler.Method, handler.Path, handler.Status, handler.ActionType)
+	key := fmt.Sprintf("%s::%s::%d::%s", handler.Method, handler.Path, handler.Status, handler.ResponderType)
 
 	if handler.identifierDescriber != nil {
 		handlersMap[key] = append(handlersMap[key], identify(handler))
@@ -29,10 +29,10 @@ func Handle[IN any, OUT any](action func(context.Context, *Request, IN) (OUT, er
 		handlersMap[key] = append(handlersMap[key], decorate(handler.Method, dec))
 	}
 
-	handlersMap[key] = append(handlersMap[key], handle(handler))
+	handlersMap[key] = append(handlersMap[key], register(handler))
 }
 
-func handle[IN any, OUT any](handler *Handler[IN, OUT]) app.HandlerFunc {
+func register[IN any, OUT any](handler *Handler[IN, OUT]) app.HandlerFunc {
 	return func(c context.Context, reqContext *app.RequestContext) {
 		reqType, err := bind(handler, reqContext)
 		if err != nil {
@@ -43,7 +43,7 @@ func handle[IN any, OUT any](handler *Handler[IN, OUT]) app.HandlerFunc {
 					err.Error(),
 					handler.Path,
 					handler.Method,
-					runtimeFunc(handler.Action).Name(),
+					runtimeFunc(handler.HandlerFn).Name(),
 				)),
 			)
 
@@ -52,7 +52,7 @@ func handle[IN any, OUT any](handler *Handler[IN, OUT]) app.HandlerFunc {
 
 		req := &Request{reqContext}
 
-		res, err := handler.Action(c, req, reqType)
+		res, err := handler.HandlerFn(c, req, reqType)
 		if err != nil {
 			handleError(reqContext, err)
 
@@ -64,30 +64,17 @@ func handle[IN any, OUT any](handler *Handler[IN, OUT]) app.HandlerFunc {
 }
 
 type Handler[IN any, OUT any] struct {
-	Action    func(context.Context, *Request, IN) (OUT, error)
+	HandlerFn func(context.Context, *Request, IN) (OUT, error)
 	RespondFn func(rctx *app.RequestContext, response any)
 
 	*apiDescriber
 	*identifierDescriber
 }
 
-type apiDescriber struct {
-	Path        string
-	Method      string
-	Status      int
-	ContentType string
-	ActionType  string
-}
-
-type identifierDescriber struct {
-	Roles       []string
-	Permissions []string
-}
-
 func (h *Handler[IN, OUT]) fixAPIDescriber() {
-	comment := funcDescription(h.Action)
+	comment := funcDescription(h.HandlerFn)
 	comments := strings.Split(comment, "\n")
-	name := runtimeFunc(h.Action).Name()
+	name := runtimeFunc(h.HandlerFn).Name()
 	apiDescriber := h.getFixedAPIDescriberFields(comments)
 
 	if len(apiDescriber) == 0 {
@@ -121,13 +108,13 @@ func (h *Handler[IN, OUT]) fixAPIDescriber() {
 
 		if strings.Contains(d, "@") {
 			typeAndContentType := strings.Split(d, "@")
-			h.ActionType = typeAndContentType[0]
+			h.ResponderType = typeAndContentType[0]
 			h.ContentType = fmt.Sprintf("%s %s", typeAndContentType[1], apiDescriber[i+1])
 
 			break
 		}
 
-		h.ActionType = d
+		h.ResponderType = d
 	}
 
 	h.setResponder(name)
@@ -155,7 +142,7 @@ func (h *Handler[IN, OUT]) getFixedAPIDescriberFields(comments []string) []strin
 }
 
 func (h *Handler[IN, OUT]) fixIdentifierDesciber() {
-	comment := funcDescription(h.Action)
+	comment := funcDescription(h.HandlerFn)
 	comments := strings.Split(comment, "\n")
 
 	for _, describer := range comments {
@@ -183,7 +170,7 @@ func (h *Handler[IN, OUT]) fixIdentifierDesciber() {
 }
 
 func (h *Handler[IN, OUT]) getDecorators() (decorators []string) {
-	comment := funcDescription(h.Action)
+	comment := funcDescription(h.HandlerFn)
 	comments := strings.Split(comment, "\n")
 
 	for _, describer := range comments {
@@ -255,7 +242,7 @@ func devHandleError(rctx *app.RequestContext, err error) {
 }
 
 func bind[IN any, OUT any](handler *Handler[IN, OUT], rctx *app.RequestContext) (req IN, err error) {
-	p := reflect.TypeOf(handler.Action).In(2)
+	p := reflect.TypeOf(handler.HandlerFn).In(2)
 	if p.Kind() == reflect.Interface {
 		return
 	}
@@ -265,6 +252,19 @@ func bind[IN any, OUT any](handler *Handler[IN, OUT], rctx *app.RequestContext) 
 	err = rctx.Bind(req)
 
 	return
+}
+
+type apiDescriber struct {
+	Path          string
+	Method        string
+	Status        int
+	ContentType   string
+	ResponderType string
+}
+
+type identifierDescriber struct {
+	Roles       []string
+	Permissions []string
 }
 
 var methods = map[string]string{

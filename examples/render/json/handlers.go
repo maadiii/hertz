@@ -8,9 +8,9 @@ import (
 )
 
 func init() {
-	server.Handle(JSON)
-	server.Handle(PureJSON)
-	server.Handle(SomeData)
+	server.Register(JSON)
+	server.Register(PureJSON)
+	server.Register(SomeData)
 }
 
 // @authorize(role1 ... perm1)

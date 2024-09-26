@@ -9,7 +9,7 @@ import (
 )
 
 func main() {
-	server.Handle(Yaml)
+	server.Register(Yaml)
 
 	hertz := server.Hertz(true, server.WithHostPorts(":8080"))
 	hertz.Spin()

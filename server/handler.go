@@ -157,7 +157,7 @@ func (h *Handler[IN, OUT]) fixIdentifierDesciber() {
 		describer, _ = strings.CutPrefix(describer, "(")
 		describer, _ = strings.CutSuffix(describer, ")")
 
-		before, after, _ := strings.Cut(describer, "...")
+		before, after, _ := strings.Cut(describer, ":::")
 
 		if len(before) > 0 {
 			h.identifierDescriber.Roles = strings.Split(before, ",")

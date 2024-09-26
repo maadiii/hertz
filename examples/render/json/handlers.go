@@ -13,7 +13,7 @@ func init() {
 	server.Register(SomeData)
 }
 
-// @authorize(role1 ... perm1)
+// @authorize(role1 ::: perm1)
 // @decorator
 // [GET] /api/v1/json/:id 200 json
 func JSON(c context.Context, _ *server.Request, in *JSONRequest) (out *JSONResponse, err error) {

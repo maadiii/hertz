@@ -81,7 +81,7 @@ func (h *Handler[IN, OUT]) fixAPIDescriber() {
 		panic(name + " has not describer")
 	}
 
-	for i, d := range apiDescriber {
+	for _, d := range apiDescriber {
 		if strings.HasPrefix(d, "[") && strings.HasSuffix(d, "]") {
 			verb, ok := methods[strings.ToUpper(d)]
 			if !ok {
@@ -109,7 +109,7 @@ func (h *Handler[IN, OUT]) fixAPIDescriber() {
 		if strings.Contains(d, "@") {
 			typeAndContentType := strings.Split(d, "@")
 			h.ResponderType = typeAndContentType[0]
-			h.ContentType = fmt.Sprintf("%s %s", typeAndContentType[1], apiDescriber[i+1])
+			h.ContentType = fmt.Sprintf("%s", typeAndContentType[1])
 
 			break
 		}

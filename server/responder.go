@@ -25,13 +25,13 @@ func (h *Handler[IN, OUT]) setResponder(name string) {
 	case "xml":
 		h.RespondFn = func(ctx *app.RequestContext, res any) { ctx.XML(h.Status, res) }
 	case "file":
-		h.RespondFn = func(ctx *app.RequestContext, res any) { ctx.File(fmt.Sprintf("%v", res)) }
+		h.RespondFn = func(ctx *app.RequestContext, res any) { ctx.File(fmt.Sprintf("%s", res)) }
+	case "attachment":
+		h.setAttachmentResponder()
 	case "text":
 		h.setTextResponder()
 	case "redirect":
 		h.setRedirectResponder()
-	case "attachment":
-		h.setAttachmentResponder()
 	case "stream":
 		h.setStreamResponder()
 	case "data":
@@ -72,7 +72,7 @@ func (h *Handler[IN, OUT]) setRedirectResponder() {
 
 func (h *Handler[IN, OUT]) setAttachmentResponder() {
 	h.RespondFn = func(ctx *app.RequestContext, res any) {
-		filepath := fmt.Sprintf("%v", res)
+		filepath := fmt.Sprintf("%s", res)
 		filename := strings.Split(filepath, "/")
 
 		ctx.SetContentType(h.ContentType)

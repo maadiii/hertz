@@ -2,15 +2,16 @@ package main
 
 import (
 	"context"
-	"time"
 
 	"github.com/maadiii/hertz/server"
 )
 
-// [GET] /index/:title 200 index.tmpl
+// [GET] /index/:title 200 index.html
 func Index(_ context.Context, _ *server.Request, in *IndexRequest) (out *IndexResponse, err error) {
 	out = &IndexResponse{
-		Title: in.Title,
+		Title:  in.Title,
+		Name:   "Maadi",
+		Family: "Azizi",
 	}
 
 	return
@@ -25,18 +26,7 @@ func (i *IndexRequest) Validate(*server.Request) error {
 }
 
 type IndexResponse struct {
-	Title string
-}
-
-// [GET] /raw 200 template1.html
-func Raw(_ context.Context, _ *server.Request, _ any) (out *RawResponse, err error) {
-	out = &RawResponse{
-		Now: time.Date(2017, 0o7, 0, 0, 0, 0, 0, time.UTC),
-	}
-
-	return
-}
-
-type RawResponse struct {
-	Now time.Time
+	Title  string
+	Name   string
+	Family string
 }

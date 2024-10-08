@@ -9,14 +9,14 @@ import (
 )
 
 func main() {
-	server.SetIdentifier(identifier)
+	server.SetIdentifier(identify)
 	server.AddDecorator("decorator", decorator)
 
 	hertz := server.Hertz(true, server.WithHostPorts(":8080"))
 	hertz.Spin()
 }
 
-func identifier(_ context.Context, req *server.Request, roles []string, permissions ...string) {
+func identify(_ context.Context, req *server.Request, roles []string, permissions ...string) {
 	if len(req.GetHeader("authorize")) == 0 {
 		req.AbortWithStatus(consts.StatusUnauthorized)
 

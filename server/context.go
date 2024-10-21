@@ -186,3 +186,7 @@ func (req *Request) AbortWithStatusJSON(code int, jsonObj any) {
 func (req *Request) AbortWithError(code int, err error) *errors.Error {
 	return req.rc.AbortWithError(code, err)
 }
+
+func (req *Request) Method() string {
+	return string(req.rc.Method())
+}

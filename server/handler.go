@@ -10,8 +10,11 @@ import (
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
+	"github.com/go-playground/validator/v10"
 	"github.com/maadiii/hertz/errors"
 )
+
+var validate = validator.New(validator.WithRequiredStructEnabled())
 
 func Register[IN any, OUT any](action func(context.Context, *Request, IN) (OUT, error)) {
 	handler := &Handler[IN, OUT]{HandlerFn: action}
@@ -48,6 +51,11 @@ func register[IN any, OUT any](handler *Handler[IN, OUT]) app.HandlerFunc {
 			)
 
 			return
+		}
+
+		// TODO: fix and match with custom http error
+		if err := validate.Struct(reqType); err != nil {
+			handleError(reqContext, err)
 		}
 
 		req := &Request{reqContext}

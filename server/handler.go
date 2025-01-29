@@ -10,6 +10,7 @@ import (
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
+	"github.com/go-playground/validator/v10"
 	"github.com/maadiii/hertz/errors"
 )
 
@@ -36,16 +37,13 @@ func register[IN any, OUT any](handler *Handler[IN, OUT]) app.HandlerFunc {
 	return func(c context.Context, reqContext *app.RequestContext) {
 		reqType, err := bind(handler, reqContext)
 		if err != nil {
-			reqContext.AbortWithStatusJSON(
-				http.StatusUnprocessableEntity,
-				errors.New(fmt.Sprintf( //nolint
-					"%s\tAPI=%s\tMethod=%s\tHandler=%s",
-					err.Error(),
-					handler.Path,
-					handler.Method,
-					runtimeFunc(handler.HandlerFn).Name(),
-				)),
-			)
+			reqContext.AbortWithStatus(http.StatusUnprocessableEntity)
+
+			return
+		}
+
+		if err := validate.Struct(reqType); err != nil {
+			reqContext.AbortWithStatus(http.StatusBadRequest)
 
 			return
 		}
@@ -195,49 +193,36 @@ func handleError(rctx *app.RequestContext, err error) {
 	}
 }
 
-func productHandleError(rctx *app.RequestContext, err error) {
-	switch t := err.(type) {
-	case *errors.Error:
-		status, ok := abortType[t]
-		if !ok {
-			rctx.AbortWithStatus(http.StatusInternalServerError)
-
-			return
-		}
-
-		t.Stack = ""
-
-		if status < 500 {
-			t.Message = strings.ToUpper(t.Message)
-			t.Message = strings.ReplaceAll(t.Message, " ", "_")
-		} else {
-			t.Message = ""
-		}
-
-		rctx.AbortWithStatusJSON(status, t)
-	default:
-		rctx.AbortWithStatus(http.StatusInternalServerError)
-	}
-}
-
 func devHandleError(rctx *app.RequestContext, err error) {
 	switch t := err.(type) {
 	case *errors.Error:
 		status, ok := abortType[t]
 		if !ok {
-			rctx.AbortWithStatusJSON(http.StatusInternalServerError, t)
+			rctx.AbortWithError(http.StatusInternalServerError, err)
 
 			return
 		}
 
-		if status < 500 {
-			t.Message = strings.ToUpper(t.Message)
-			t.Message = strings.ReplaceAll(t.Message, " ", "_")
-		}
-
 		rctx.AbortWithStatusJSON(status, t)
 	default:
-		rctx.AbortWithStatusJSON(http.StatusInternalServerError, err)
+		rctx.AbortWithError(http.StatusInternalServerError, err)
+	}
+}
+
+// TODO: log message and stack
+func productHandleError(rctx *app.RequestContext, err error) {
+	switch t := err.(type) {
+	case *errors.Error:
+		status, ok := abortType[t]
+		if !ok {
+			rctx.AbortWithError(http.StatusInternalServerError, err)
+
+			return
+		}
+
+		rctx.AbortWithMsg(t.Key, status)
+	default:
+		rctx.AbortWithError(http.StatusInternalServerError, err)
 	}
 }
 
@@ -253,6 +238,8 @@ func bind[IN any, OUT any](handler *Handler[IN, OUT], rctx *app.RequestContext) 
 
 	return
 }
+
+var validate = validator.New()
 
 type apiDescriber struct {
 	Path          string

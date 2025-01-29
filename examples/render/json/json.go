@@ -35,7 +35,7 @@ type JSONRequest struct {
 
 func (r *JSONRequest) Validate(*server.Request) (err error) {
 	if r.ID < 1 {
-		err = errors.BadRequest.Format("invalid id")
+		err = errors.BadRequest
 	}
 
 	return

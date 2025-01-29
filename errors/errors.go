@@ -9,38 +9,19 @@ import (
 
 type Error struct {
 	Message string `json:"message,omitempty"`
-	Params  []any  `json:"params,omitempty"`
+	Key     string `json:"key,omitempty"`
 	Stack   string `json:"stack,omitempty"`
 }
 
+func (e *Error) WithKey(key string) {
+	key = strings.ReplaceAll(key, " ", "_")
+	e.Key = key
+}
+
 func (e Error) Error() string {
-	msg := strings.Split(e.Message, " ")
-	index := 0
-
-	for i, v := range msg {
-		if strings.Contains(v, "[") {
-			msg[i] = fmt.Sprintf("%v", e.Params[index])
-			index++
-		}
-	}
-
-	return strings.Join(msg, " ") + "\n" + e.Stack
+	return e.Message
 }
 
-func (e *Error) Format(format string, args ...any) error {
-	for i := range args {
-		index := strings.Index(format, "%")
-		format = format[:index] + fmt.Sprintf("[%d]", i) + format[index+2:]
-	}
-
-	e.Message = format
-	e.Params = args
-	e.Stack = stack()
-
-	return e
-}
-
-// If error does not have any message to use with Format method use wrap method to wrap it
 func (e *Error) Wrap(err error) error {
 	e.Message = err.Error()
 	e.Stack = stack()

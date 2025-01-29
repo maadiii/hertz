@@ -28,7 +28,7 @@ const identityKey = "identity"
 
 var identifier identifierFn
 
-func identify[IN any, OUT any](handler *Handler[IN, OUT]) app.HandlerFunc {
+func identify[IN RequestDto, OUT any](handler *Handler[IN, OUT]) app.HandlerFunc {
 	return func(c context.Context, rctx *app.RequestContext) {
 		req := &Request{rctx}
 

@@ -10,13 +10,10 @@ import (
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
-	"github.com/go-playground/validator/v10"
 	"github.com/maadiii/hertz/errors"
 )
 
-var validate = validator.New(validator.WithRequiredStructEnabled())
-
-func Register[IN any, OUT any](action func(context.Context, *Request, IN) (OUT, error)) {
+func Register[IN RequestDto, OUT any](action func(context.Context, *Request, IN) (OUT, error)) {
 	handler := &Handler[IN, OUT]{HandlerFn: action}
 	handler.fixAPIDescriber()
 	handler.fixIdentifierDesciber()
@@ -35,27 +32,19 @@ func Register[IN any, OUT any](action func(context.Context, *Request, IN) (OUT, 
 	handlersMap[key] = append(handlersMap[key], register(handler))
 }
 
-func register[IN any, OUT any](handler *Handler[IN, OUT]) app.HandlerFunc {
+func register[IN RequestDto, OUT any](handler *Handler[IN, OUT]) app.HandlerFunc {
 	return func(c context.Context, reqContext *app.RequestContext) {
 		reqType, err := bind(handler, reqContext)
 		if err != nil {
-			reqContext.AbortWithStatusJSON(
-				http.StatusUnprocessableEntity,
-				errors.New(fmt.Sprintf( //nolint
-					"%s\tAPI=%s\tMethod=%s\tHandler=%s",
-					err.Error(),
-					handler.Path,
-					handler.Method,
-					runtimeFunc(handler.HandlerFn).Name(),
-				)),
-			)
+			reqContext.AbortWithStatus(http.StatusUnprocessableEntity)
 
 			return
 		}
 
-		// TODO: fix and match with custom http error
-		if err := validate.Struct(reqType); err != nil {
+		if err := reqType.Validate(c); err != nil {
 			handleError(reqContext, err)
+
+			return
 		}
 
 		req := &Request{reqContext}
@@ -71,7 +60,7 @@ func register[IN any, OUT any](handler *Handler[IN, OUT]) app.HandlerFunc {
 	}
 }
 
-type Handler[IN any, OUT any] struct {
+type Handler[IN RequestDto, OUT any] struct {
 	HandlerFn func(context.Context, *Request, IN) (OUT, error)
 	RespondFn func(rctx *app.RequestContext, response any)
 
@@ -195,61 +184,7 @@ func (h *Handler[IN, OUT]) getDecorators() (decorators []string) {
 	return
 }
 
-func handleError(rctx *app.RequestContext, err error) {
-	if dev {
-		devHandleError(rctx, err)
-	} else {
-		productHandleError(rctx, err)
-	}
-}
-
-func productHandleError(rctx *app.RequestContext, err error) {
-	switch t := err.(type) {
-	case *errors.Error:
-		status, ok := abortType[t]
-		if !ok {
-			rctx.AbortWithStatus(http.StatusInternalServerError)
-
-			return
-		}
-
-		t.Stack = ""
-
-		if status < 500 {
-			t.Message = strings.ToUpper(t.Message)
-			t.Message = strings.ReplaceAll(t.Message, " ", "_")
-		} else {
-			t.Message = ""
-		}
-
-		rctx.AbortWithStatusJSON(status, t)
-	default:
-		rctx.AbortWithStatus(http.StatusInternalServerError)
-	}
-}
-
-func devHandleError(rctx *app.RequestContext, err error) {
-	switch t := err.(type) {
-	case *errors.Error:
-		status, ok := abortType[t]
-		if !ok {
-			rctx.AbortWithStatusJSON(http.StatusInternalServerError, t)
-
-			return
-		}
-
-		if status < 500 {
-			t.Message = strings.ToUpper(t.Message)
-			t.Message = strings.ReplaceAll(t.Message, " ", "_")
-		}
-
-		rctx.AbortWithStatusJSON(status, t)
-	default:
-		rctx.AbortWithStatusJSON(http.StatusInternalServerError, err)
-	}
-}
-
-func bind[IN any, OUT any](handler *Handler[IN, OUT], rctx *app.RequestContext) (req IN, err error) {
+func bind[IN RequestDto, OUT any](handler *Handler[IN, OUT], rctx *app.RequestContext) (req IN, err error) {
 	p := reflect.TypeOf(handler.HandlerFn).In(2)
 	if p.Kind() == reflect.Interface {
 		return
@@ -260,6 +195,10 @@ func bind[IN any, OUT any](handler *Handler[IN, OUT], rctx *app.RequestContext) 
 	err = rctx.Bind(req)
 
 	return
+}
+
+type RequestDto interface {
+	Validate(ctx context.Context) error
 }
 
 type apiDescriber struct {
@@ -273,6 +212,14 @@ type apiDescriber struct {
 type identifierDescriber struct {
 	Roles       []string
 	Permissions []string
+}
+
+type ErrorHandlerFn func(*app.RequestContext, error)
+
+var handleError ErrorHandlerFn
+
+func SetErrorHandler(f func(*app.RequestContext, error)) {
+	handleError = f
 }
 
 var methods = map[string]string{

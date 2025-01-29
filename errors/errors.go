@@ -13,9 +13,11 @@ type Error struct {
 	Stack   string `json:"stack,omitempty"`
 }
 
-func (e *Error) WithKey(key string) {
+func (e *Error) WithKey(key string) error {
 	key = strings.ReplaceAll(key, " ", "_")
 	e.Key = key
+
+	return e
 }
 
 func (e Error) Error() string {

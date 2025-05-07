@@ -81,10 +81,8 @@ func (h *Handler[IN, OUT]) fixAPIDescriber() {
 
 	for _, d := range apiDescriber {
 		if strings.HasPrefix(d, "[") && strings.HasSuffix(d, "]") {
-			verb, ok := methods[strings.ToUpper(d)]
-			if !ok {
-				panic(name + " has invalid VERB")
-			}
+			verb := strings.Replace(d, "[", "", 1)
+			verb = strings.Replace(verb, "]", "", 1)
 
 			h.Method = verb
 
@@ -127,11 +125,6 @@ func (h *Handler[IN, OUT]) getFixedAPIDescriberFields(comments []string) []strin
 		}
 
 		desc := strings.Split(describer, " ")
-
-		_, ok := methods[strings.ToUpper(desc[0])]
-		if !ok {
-			continue
-		}
 
 		return desc
 	}
@@ -252,18 +245,6 @@ type apiDescriber struct {
 type identifierDescriber struct {
 	Roles       []string
 	Permissions []string
-}
-
-var methods = map[string]string{
-	"[GET]":     http.MethodGet,
-	"[HEAD]":    http.MethodHead,
-	"[POST]":    http.MethodPost,
-	"[PUT]":     http.MethodPut,
-	"[PATCH]":   http.MethodPatch,
-	"[DELETE]":  http.MethodDelete,
-	"[CONNECT]": http.MethodConnect,
-	"[OPTIONS]": http.MethodOptions,
-	"[TRACE]":   http.MethodTrace,
 }
 
 var abortType = map[*errors.Error]int{

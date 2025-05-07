@@ -43,9 +43,11 @@ func register[IN any, OUT any](handler *Handler[IN, OUT]) app.HandlerFunc {
 		}
 
 		if err := validate.Struct(reqType); err != nil {
-			reqContext.AbortWithStatus(http.StatusBadRequest)
+			if err.(*validator.InvalidValidationError).Type != nil {
+				reqContext.AbortWithStatus(http.StatusBadRequest)
 
-			return
+				return
+			}
 		}
 
 		req := &Request{reqContext}

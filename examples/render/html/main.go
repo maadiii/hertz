@@ -10,7 +10,7 @@ import (
 func main() {
 	server.Register(Index)
 
-	hertz := server.Hertz(true, server.WithHostPorts(":8080"))
+	hertz := server.Hertz(server.WithHostPorts(":8080"))
 
 	hertz.LoadHTMLGlob("./*")
 

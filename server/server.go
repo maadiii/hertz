@@ -11,7 +11,7 @@ import (
 
 var (
 	s                *server.Hertz
-	dev              bool
+	handleError      ErrorHandler
 	uses             = make([]app.HandlerFunc, 0)
 	static           = make(map[string]string)
 	staticFile       = make(map[string]string)
@@ -20,8 +20,7 @@ var (
 	noMethodHandlers = make([]app.HandlerFunc, 0)
 )
 
-func Hertz(devMode bool, opts ...config.Option) *server.Hertz {
-	dev = devMode
+func Hertz(opts ...config.Option) *server.Hertz {
 	s = server.New(opts...)
 	s.Use(recovery.Recovery())
 
@@ -80,4 +79,9 @@ func StaticFile(relativePath, filepath string) {
 // For example, this is the right place for a logger or error management middleware.
 func Use(handlers ...app.HandlerFunc) {
 	uses = append(uses, handlers...)
+}
+
+// SetErrorHandler set final error handler of response
+func SetErrorHandler(handler ErrorHandler) {
+	handleError = handler
 }

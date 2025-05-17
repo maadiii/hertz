@@ -9,9 +9,7 @@ import (
 	"strings"
 
 	"github.com/cloudwego/hertz/pkg/app"
-	"github.com/cloudwego/hertz/pkg/protocol/consts"
 	"github.com/go-playground/validator/v10"
-	"github.com/maadiii/hertz/errors"
 )
 
 func Register[IN any, OUT any](action func(context.Context, *Request, IN) (OUT, error)) {
@@ -55,7 +53,16 @@ func register[IN any, OUT any](handler *Handler[IN, OUT]) app.HandlerFunc {
 
 		res, err := handler.HandlerFn(c, req, reqType)
 		if err != nil {
-			handleError(reqContext, err)
+			if handleError != nil {
+				handleError(c, reqContext, err)
+
+				return
+			}
+
+			cerr := reqContext.AbortWithError(500, err)
+
+			// TODO: log the error
+			_ = cerr
 
 			return
 		}
@@ -181,47 +188,6 @@ func (h *Handler[IN, OUT]) getDecorators() (decorators []string) {
 	return
 }
 
-func handleError(rctx *app.RequestContext, err error) {
-	if dev {
-		devHandleError(rctx, err)
-	} else {
-		productHandleError(rctx, err)
-	}
-}
-
-func devHandleError(rctx *app.RequestContext, err error) {
-	switch t := err.(type) {
-	case *errors.Error:
-		status, ok := abortType[t]
-		if !ok {
-			rctx.AbortWithError(http.StatusInternalServerError, err)
-
-			return
-		}
-
-		rctx.AbortWithStatusJSON(status, t)
-	default:
-		rctx.AbortWithError(http.StatusInternalServerError, err)
-	}
-}
-
-// TODO: log message and stack
-func productHandleError(rctx *app.RequestContext, err error) {
-	switch t := err.(type) {
-	case *errors.Error:
-		status, ok := abortType[t]
-		if !ok {
-			rctx.AbortWithError(http.StatusInternalServerError, err)
-
-			return
-		}
-
-		rctx.AbortWithMsg(t.Key, status)
-	default:
-		rctx.AbortWithError(http.StatusInternalServerError, err)
-	}
-}
-
 func bind[IN any, OUT any](handler *Handler[IN, OUT], rctx *app.RequestContext) (req IN, err error) {
 	p := reflect.TypeOf(handler.HandlerFn).In(2)
 	if p.Kind() == reflect.Interface {
@@ -250,46 +216,4 @@ type identifierDescriber struct {
 	Permissions []string
 }
 
-var abortType = map[*errors.Error]int{
-	errors.BadRequest:                    consts.StatusBadRequest,
-	errors.Unauthorized:                  consts.StatusUnauthorized,
-	errors.PaymentRequired:               consts.StatusPaymentRequired,
-	errors.Forbidden:                     consts.StatusForbidden,
-	errors.NotFound:                      consts.StatusNotFound,
-	errors.MethodNotAllowed:              consts.StatusMethodNotAllowed,
-	errors.NotAcceptable:                 consts.StatusNotAcceptable,
-	errors.ProxyAuthRequired:             consts.StatusProxyAuthRequired,
-	errors.RequestTimeout:                consts.StatusRequestTimeout,
-	errors.Conflict:                      consts.StatusConflict,
-	errors.AlreadyExist:                  consts.StatusConflict,
-	errors.Gone:                          consts.StatusGone,
-	errors.LengthRequired:                consts.StatusLengthRequired,
-	errors.PreconditionFailed:            consts.StatusPreconditionFailed,
-	errors.RequestEntityTooLarge:         consts.StatusRequestEntityTooLarge,
-	errors.RequestURITooLong:             consts.StatusRequestURITooLong,
-	errors.UnsupportedMediaType:          consts.StatusUnsupportedMediaType,
-	errors.RequestedRangeNotSatisfiable:  consts.StatusRequestedRangeNotSatisfiable,
-	errors.ExpectationFailed:             consts.StatusExpectationFailed,
-	errors.Teapot:                        consts.StatusTeapot,
-	errors.UnprocessableEntity:           consts.StatusUnprocessableEntity,
-	errors.Locked:                        consts.StatusLocked,
-	errors.FailedDependency:              consts.StatusFailedDependency,
-	errors.UpgradeRequired:               consts.StatusUpgradeRequired,
-	errors.PreconditionRequired:          consts.StatusPreconditionFailed,
-	errors.TooManyRequests:               consts.StatusTooManyRequests,
-	errors.RequestHeaderFieldsTooLarge:   consts.StatusRequestHeaderFieldsTooLarge,
-	errors.UnavailableForLegalReasons:    consts.StatusUnavailableForLegalReasons,
-	errors.InternalServerError:           consts.StatusInternalServerError,
-	errors.NotImplemented:                consts.StatusNotImplemented,
-	errors.BadGateway:                    consts.StatusBadGateway,
-	errors.ServiceUnavailable:            consts.StatusServiceUnavailable,
-	errors.GatewayTimeout:                consts.StatusGatewayTimeout,
-	errors.HTTPVersionNotSupported:       consts.StatusHTTPVersionNotSupported,
-	errors.VariantAlsoNegotiates:         consts.StatusVariantAlsoNegotiates,
-	errors.InsufficientStorage:           consts.StatusInsufficientStorage,
-	errors.LoopDetected:                  consts.StatusLoopDetected,
-	errors.NotExtended:                   consts.StatusNotExtended,
-	errors.NetworkAuthenticationRequired: consts.StatusNetworkAuthenticationRequired,
-
-	errors.Retry: 599,
-}
+type ErrorHandler func(c context.Context, rctx *app.RequestContext, err error)

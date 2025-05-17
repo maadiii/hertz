@@ -12,7 +12,7 @@ func main() {
 	server.SetIdentifier(identify)
 	server.AddDecorator("decorator", decorator)
 
-	hertz := server.Hertz(true, server.WithHostPorts(":8080"))
+	hertz := server.Hertz(server.WithHostPorts(":8080"))
 	hertz.Spin()
 }
 

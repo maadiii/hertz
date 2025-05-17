@@ -31,7 +31,7 @@ func funcDescription(f interface{}) string {
 		return ""
 	}
 
-	pkg := &ast.Package{
+	pkg := &ast.Package{ //nolint
 		Name:  "Any",
 		Files: make(map[string]*ast.File),
 	}

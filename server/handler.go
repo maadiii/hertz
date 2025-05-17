@@ -59,10 +59,7 @@ func register[IN any, OUT any](handler *Handler[IN, OUT]) app.HandlerFunc {
 				return
 			}
 
-			cerr := reqContext.AbortWithError(500, err)
-
-			// TODO: log the error
-			_ = cerr
+			reqContext.AbortWithError(500, err) //nolint
 
 			return
 		}
@@ -115,7 +112,7 @@ func (h *Handler[IN, OUT]) fixAPIDescriber() {
 		if strings.Contains(d, "@") {
 			typeAndContentType := strings.Split(d, "@")
 			h.ResponderType = typeAndContentType[0]
-			h.ContentType = fmt.Sprintf("%s", typeAndContentType[1])
+			h.ContentType = typeAndContentType[1]
 
 			break
 		}
@@ -161,11 +158,11 @@ func (h *Handler[IN, OUT]) fixIdentifierDesciber() {
 		before, after, _ := strings.Cut(describer, ":::")
 
 		if len(before) > 0 {
-			h.identifierDescriber.Roles = strings.Split(before, ",")
+			h.identifierDescriber.Roles = strings.Split(before, ",") //nolint
 		}
 
 		if len(after) > 0 {
-			h.identifierDescriber.Permissions = strings.Split(after, ",")
+			h.identifierDescriber.Permissions = strings.Split(after, ",") //nolint
 		}
 	}
 }

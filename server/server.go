@@ -7,6 +7,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/app/middlewares/server/recovery"
 	"github.com/cloudwego/hertz/pkg/app/server"
 	"github.com/cloudwego/hertz/pkg/common/config"
+	"github.com/cloudwego/hertz/pkg/common/hlog"
 )
 
 var (
@@ -21,6 +22,7 @@ var (
 )
 
 func Hertz(opts ...config.Option) *server.Hertz {
+	hlog.SetLevel(hlog.Level(7))
 	s = server.New(opts...)
 	s.Use(recovery.Recovery())
 

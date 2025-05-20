@@ -69,7 +69,9 @@ func identify(_ context.Context, req *server.Request, roles []string, permission
 		}
 	}
 
-	identity := server.Identityy{"id": 1, "username": "maadi"}
+	identity := server.Identity{
+		ID: "1",
+	}
 
 	req.SetIdentity(identity)
 }

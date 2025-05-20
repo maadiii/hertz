@@ -33,6 +33,11 @@ func Register[IN any, OUT any](action func(context.Context, *Request, IN) (OUT, 
 
 func register[IN any, OUT any](handler *Handler[IN, OUT]) app.HandlerFunc {
 	return func(c context.Context, reqContext *app.RequestContext) {
+		defer func() {
+			if r := recover(); r != nil {
+				_ = reqContext.Error(fmt.Errorf("%v", r))
+			}
+		}()
 		reqType, err := bind(handler, reqContext)
 		if err != nil {
 			reqContext.AbortWithStatus(http.StatusUnprocessableEntity)

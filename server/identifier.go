@@ -20,7 +20,6 @@ func (req *Request) Identity() Identity {
 }
 
 type (
-	Identity     map[string]any
 	identifierFn func(c context.Context, req *Request, roles []string, permissions ...string)
 )
 
@@ -32,6 +31,12 @@ func identify[IN any, OUT any](handler *Handler[IN, OUT]) app.HandlerFunc {
 	return func(c context.Context, rctx *app.RequestContext) {
 		req := &Request{rctx}
 
-		identifier(c, req, handler.identifierDescriber.Roles, handler.identifierDescriber.Permissions...)
+		identifier(c, req, handler.Roles, handler.Permissions...)
 	}
+}
+
+type Identity struct {
+	ID          string
+	Role        string
+	Permissions []string
 }

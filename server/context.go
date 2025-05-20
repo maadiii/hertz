@@ -187,6 +187,19 @@ func (req *Request) AbortWithError(code int, err error) *errors.Error {
 	return req.rc.AbortWithError(code, err)
 }
 
+// Method return request method.
+//
+// Returned value is valid until returning from RequestHandler.
 func (req *Request) Method() string {
 	return string(req.rc.Method())
+}
+
+// Error attaches an error to the current context. The error is pushed to a list of errors.
+//
+// It's a good idea to call Error for each error that occurred during the resolution of a request.
+// A middleware can be used to collect all the errors and push them to a database together,
+// print a log, or append it in the HTTP response.
+// Error will panic if err is nil.
+func (req *Request) Error(err error) *errors.Error {
+	return req.rc.Error(err)
 }

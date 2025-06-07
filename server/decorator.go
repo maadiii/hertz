@@ -14,11 +14,11 @@ func AddDecorator(name string, f decoratorFn) {
 	decorators[name] = f
 }
 
-func decorate(handlerName, decoratorName string) app.HandlerFunc {
+func decorate(path, handlerName, decoratorName string) app.HandlerFunc {
 	return func(c context.Context, rctx *app.RequestContext) {
 		decorator, ok := decorators[decoratorName]
 		if !ok {
-			panic("decorator not exist for " + handlerName)
+			panic("decorator not exist for " + path + " " + handlerName)
 		}
 
 		req := &Request{rctx}

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
-	"runtime/debug"
 	"strconv"
 	"strings"
 
@@ -26,7 +25,7 @@ func Register[IN any, OUT any](action func(context.Context, *Request, IN) (OUT, 
 
 	decorators := handler.getDecorators()
 	for _, dec := range decorators {
-		handlersMap[key] = append(handlersMap[key], decorate(handler.Method, dec))
+		handlersMap[key] = append(handlersMap[key], decorate(handler.Path, handler.Method, dec))
 	}
 
 	handlersMap[key] = append(handlersMap[key], register(handler))
@@ -34,13 +33,6 @@ func Register[IN any, OUT any](action func(context.Context, *Request, IN) (OUT, 
 
 func register[IN any, OUT any](handler *Handler[IN, OUT]) app.HandlerFunc {
 	return func(c context.Context, reqContext *app.RequestContext) {
-		defer func() {
-			if r := recover(); r != nil {
-				err := fmt.Errorf("%v\n%v", r, string(debug.Stack()))
-				_ = reqContext.Error(reqContext.AbortWithError(http.StatusInternalServerError, err))
-			}
-		}()
-
 		reqType, err := bind(handler, reqContext)
 		if err != nil {
 			reqContext.AbortWithStatus(http.StatusUnprocessableEntity)

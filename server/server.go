@@ -1,10 +1,13 @@
 package server
 
 import (
+	"context"
+	"fmt"
+	"net/http"
+	"runtime/debug"
 	"strings"
 
 	"github.com/cloudwego/hertz/pkg/app"
-	"github.com/cloudwego/hertz/pkg/app/middlewares/server/recovery"
 	"github.com/cloudwego/hertz/pkg/app/server"
 	"github.com/cloudwego/hertz/pkg/common/config"
 	"github.com/cloudwego/hertz/pkg/common/hlog"
@@ -24,11 +27,21 @@ var (
 func Hertz(opts ...config.Option) *server.Hertz {
 	hlog.SetLevel(hlog.Level(7))
 	s = server.New(opts...)
-	s.Use(recovery.Recovery())
 
 	for i := range uses {
 		s.Use(uses[i])
 	}
+
+	s.Use(func(c context.Context, ctx *app.RequestContext) {
+		defer func() {
+			if r := recover(); r != nil {
+				err := fmt.Errorf("%v\n%v", r, string(debug.Stack()))
+				_ = ctx.Error(ctx.AbortWithError(http.StatusInternalServerError, err))
+			}
+		}()
+
+		ctx.Next(c)
+	})
 
 	for relativePath, root := range static {
 		s.Static(relativePath, root)

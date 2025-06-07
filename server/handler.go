@@ -17,7 +17,7 @@ func Register[IN any, OUT any](action func(context.Context, *Request, IN) (OUT, 
 	handler.fixAPIDescriber()
 	handler.fixIdentifierDesciber()
 
-	key := fmt.Sprintf("%s::%s::%d::%s", handler.Method, handler.Path, handler.Status, handler.ResponderType)
+	key := fmt.Sprintf("%s::%s::%d::%s", handler.Verb, handler.Path, handler.Status, handler.ResponderType)
 
 	if handler.identifierDescriber != nil {
 		handlersMap[key] = append(handlersMap[key], identify(handler))
@@ -25,7 +25,7 @@ func Register[IN any, OUT any](action func(context.Context, *Request, IN) (OUT, 
 
 	decorators := handler.getDecorators()
 	for _, dec := range decorators {
-		handlersMap[key] = append(handlersMap[key], decorate(handler.Path, handler.Method, dec))
+		handlersMap[key] = append(handlersMap[key], decorate(handler.Path, handler.Verb, dec))
 	}
 
 	handlersMap[key] = append(handlersMap[key], register(handler))
@@ -92,7 +92,7 @@ func (h *Handler[IN, OUT]) fixAPIDescriber() {
 			verb := strings.Replace(d, "[", "", 1)
 			verb = strings.Replace(verb, "]", "", 1)
 
-			h.Method = verb
+			h.Verb = verb
 
 			continue
 		}
@@ -203,7 +203,7 @@ var validate = validator.New()
 
 type apiDescriber struct {
 	Path          string
-	Method        string
+	Verb          string
 	Status        int
 	ContentType   string
 	ResponderType string

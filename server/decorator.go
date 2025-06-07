@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/cloudwego/hertz/pkg/app"
 )
@@ -14,15 +15,16 @@ func AddDecorator(name string, f decoratorFn) {
 	decorators[name] = f
 }
 
-func decorate(path, handlerName, decoratorName string) app.HandlerFunc {
+func decorate(path, verb, decorator string) app.HandlerFunc {
 	return func(c context.Context, rctx *app.RequestContext) {
-		decorator, ok := decorators[decoratorName]
+		decorate, ok := decorators[decorator]
 		if !ok {
-			panic("decorator not exist for " + path + " " + handlerName)
+			msg := fmt.Sprintf("%s decorator does not exist for [%s] %s", decorator, verb, path)
+			panic(msg)
 		}
 
 		req := &Request{rctx}
 
-		decorator(c, req)
+		decorate(c, req)
 	}
 }

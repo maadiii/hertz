@@ -32,10 +32,13 @@ func Register[IN any, OUT any](action func(context.Context, *Request, IN) (OUT, 
 }
 
 func register[IN any, OUT any](handler *Handler[IN, OUT]) app.HandlerFunc {
-	return func(c context.Context, reqContext *app.RequestContext) {
-		reqType, err := bind(handler, reqContext)
+	return func(c context.Context, r *app.RequestContext) {
+		ctx, cancel := context.WithCancel(c)
+		defer cancel()
+
+		reqType, err := bind(handler, r)
 		if err != nil {
-			reqContext.AbortWithStatus(http.StatusUnprocessableEntity)
+			r.AbortWithStatus(http.StatusUnprocessableEntity)
 
 			return
 		}
@@ -43,29 +46,29 @@ func register[IN any, OUT any](handler *Handler[IN, OUT]) app.HandlerFunc {
 		if err := validate.Struct(reqType); err != nil {
 			_, ok := err.(validator.ValidationErrors)
 			if ok || err.(*validator.InvalidValidationError).Type != nil {
-				_ = reqContext.Error(reqContext.AbortWithError(http.StatusBadRequest, err))
-				handleError(c, reqContext, err)
+				_ = r.Error(r.AbortWithError(http.StatusBadRequest, err))
+				handleError(ctx, r, err)
 
 				return
 			}
 		}
 
-		req := &Request{reqContext}
+		req := &Request{r}
 
-		res, err := handler.HandlerFn(c, req, reqType)
+		res, err := handler.HandlerFn(ctx, req, reqType)
 		if err != nil {
 			if handleError != nil {
-				handleError(c, reqContext, err)
+				handleError(c, r, err)
 
 				return
 			}
 
-			reqContext.AbortWithError(500, err) //nolint
+			r.AbortWithError(500, err) //nolint
 
 			return
 		}
 
-		handler.RespondFn(reqContext, res)
+		handler.RespondFn(r, res)
 	}
 }
 

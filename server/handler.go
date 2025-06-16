@@ -33,9 +33,6 @@ func Register[IN any, OUT any](action func(context.Context, *Request, IN) (OUT, 
 
 func register[IN any, OUT any](handler *Handler[IN, OUT]) app.HandlerFunc {
 	return func(c context.Context, r *app.RequestContext) {
-		ctx, cancel := context.WithCancel(c)
-		defer cancel()
-
 		reqType, err := bind(handler, r)
 		if err != nil {
 			r.AbortWithStatus(http.StatusUnprocessableEntity)
@@ -47,7 +44,7 @@ func register[IN any, OUT any](handler *Handler[IN, OUT]) app.HandlerFunc {
 			_, ok := err.(validator.ValidationErrors)
 			if ok || err.(*validator.InvalidValidationError).Type != nil {
 				_ = r.Error(r.AbortWithError(http.StatusBadRequest, err))
-				handleError(ctx, r, err)
+				handleError(c, r, err)
 
 				return
 			}
@@ -55,7 +52,7 @@ func register[IN any, OUT any](handler *Handler[IN, OUT]) app.HandlerFunc {
 
 		req := &Request{r}
 
-		res, err := handler.HandlerFn(ctx, req, reqType)
+		res, err := handler.HandlerFn(c, req, reqType)
 		if err != nil {
 			if handleError != nil {
 				handleError(c, r, err)

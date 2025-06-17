@@ -37,6 +37,7 @@ func Hertz(opts ...config.Option) *server.Hertz {
 			if r := recover(); r != nil {
 				err := fmt.Errorf("%v\n%v", r, string(debug.Stack()))
 				_ = ctx.Error(ctx.AbortWithError(http.StatusInternalServerError, err))
+				handleError(c, ctx, err)
 			}
 		}()
 

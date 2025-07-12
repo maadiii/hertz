@@ -33,6 +33,7 @@ func Register[IN any, OUT any](action func(context.Context, *Request, IN) (OUT, 
 
 func register[IN any, OUT any](handler *Handler[IN, OUT]) app.HandlerFunc {
 	return func(c context.Context, r *app.RequestContext) {
+		r.Set(HandlerName, handler.FunctionName)
 		reqType, err := bind(handler, r)
 		if err != nil {
 			r.AbortWithStatus(http.StatusUnprocessableEntity)
@@ -80,11 +81,11 @@ type Handler[IN any, OUT any] struct {
 func (h *Handler[IN, OUT]) fixAPIDescriber() {
 	comment := funcDescription(h.HandlerFn)
 	comments := strings.Split(comment, "\n")
-	name := runtimeFunc(h.HandlerFn).Name()
-	apiDescriber := h.getFixedAPIDescriberFields(comments)
+	functionName := runtimeFunc(h.HandlerFn).Name()
+	apiDescriber := h.getFixedAPIDescriberFields(functionName, comments)
 
 	if len(apiDescriber) == 0 {
-		panic(name + " has not describer")
+		panic(functionName + " has not describer")
 	}
 
 	for _, d := range apiDescriber {
@@ -121,11 +122,12 @@ func (h *Handler[IN, OUT]) fixAPIDescriber() {
 		h.ResponderType = d
 	}
 
-	h.setResponder(name)
+	h.setResponder(functionName)
 }
 
-func (h *Handler[IN, OUT]) getFixedAPIDescriberFields(comments []string) []string {
+func (h *Handler[IN, OUT]) getFixedAPIDescriberFields(functionName string, comments []string) []string {
 	h.apiDescriber = new(apiDescriber)
+	h.FunctionName = functionName
 
 	for _, describer := range comments {
 		if !strings.HasPrefix(describer, "[") {
@@ -199,9 +201,13 @@ func bind[IN any, OUT any](handler *Handler[IN, OUT], rctx *app.RequestContext) 
 	return
 }
 
-var validate = validator.New()
+var (
+	validate    = validator.New()
+	HandlerName = "handler_name"
+)
 
 type apiDescriber struct {
+	FunctionName  string
 	Path          string
 	Verb          string
 	Status        int

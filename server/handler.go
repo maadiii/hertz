@@ -36,7 +36,7 @@ func register[IN any, OUT any](handler *Handler[IN, OUT]) app.HandlerFunc {
 		r.Set(HandlerName, handler.FunctionName)
 		reqType, err := bind(handler, r)
 		if err != nil {
-			r.AbortWithStatus(http.StatusUnprocessableEntity)
+			_ = r.Error(r.AbortWithError(http.StatusUnprocessableEntity, err))
 
 			return
 		}

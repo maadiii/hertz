@@ -39,4 +39,5 @@ type Identity struct {
 	ID          string
 	Role        string
 	Permissions []string
+	Data        map[string]any
 }

@@ -33,7 +33,6 @@ func Register[IN any, OUT any](action func(context.Context, *Request, IN) (OUT, 
 
 func register[IN any, OUT any](handler *Handler[IN, OUT]) app.HandlerFunc {
 	return func(c context.Context, r *app.RequestContext) {
-		r.Set(HandlerName, handler.FunctionName)
 		reqType, err := bind(handler, r)
 		if err != nil {
 			_ = r.Error(r.AbortWithError(http.StatusUnprocessableEntity, err))
@@ -201,10 +200,7 @@ func bind[IN any, OUT any](handler *Handler[IN, OUT], rctx *app.RequestContext) 
 	return
 }
 
-var (
-	validate    = validator.New()
-	HandlerName = "handler_name"
-)
+var validate = validator.New()
 
 type apiDescriber struct {
 	FunctionName  string
